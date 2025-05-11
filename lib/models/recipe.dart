@@ -91,6 +91,7 @@ class SimpleMenu {
   final String description;
   final String? calories;
   final List<String>? ingredients;
+  final String mealType;
 
   SimpleMenu({
     required this.dishName,
@@ -98,6 +99,7 @@ class SimpleMenu {
     required this.description,
     this.calories,
     this.ingredients,
+    required this.mealType,
   });
 
   factory SimpleMenu.fromJson(Map<String, dynamic> json) {
@@ -109,6 +111,7 @@ class SimpleMenu {
       ingredients: (json['ingredients'] is List)
           ? (json['ingredients'] as List).map((e) => e.toString()).toList()
           : null,
+      mealType: json['meal_type'] ?? json['mealType'] ?? json['category'] ?? 'other',
     );
   }
 
@@ -117,6 +120,7 @@ class SimpleMenu {
       'dish_name': dishName,
       'category': category,
       'description': description,
+      'meal_type': mealType,
       if (calories != null) 'calories': calories,
       if (ingredients != null) 'ingredients': ingredients,
     };

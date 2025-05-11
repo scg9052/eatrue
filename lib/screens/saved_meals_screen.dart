@@ -14,12 +14,47 @@ class SavedMealsScreen extends StatefulWidget {
 
 class _SavedMealsScreenState extends State<SavedMealsScreen> {
   Future<void> _navigateToRecipeDetail(BuildContext context, Meal meal) async {
-    if (meal.recipeJson != null) {
-      final recipe = Recipe.fromJson(meal.recipeJson!);
-      Navigator.push(context, MaterialPageRoute(builder: (context) => RecipeDetailScreen(recipe: recipe)));
-    } else {
+    try {
+      if (meal.recipeJson != null) {
+        final recipe = Recipe.fromJson(meal.recipeJson!);
+        Navigator.push(context, MaterialPageRoute(
+          builder: (context) => RecipeDetailScreen(recipe: recipe)
+        ));
+      } else {
+        // 저장된 레시피가 없는 경우 새로 생성 시도
+        final mealProvider = Provider.of<MealProvider>(context, listen: false);
+        
+        // 로딩 상태 표시
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('레시피 정보를 불러오는 중...'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+        
+        final Recipe? generatedRecipe = await mealProvider.loadRecipeDetails(meal.name);
+        
+        if (generatedRecipe != null) {
+          // 생성된 레시피가 있으면 상세 화면으로 이동
+          Navigator.push(context, MaterialPageRoute(
+            builder: (context) => RecipeDetailScreen(recipe: generatedRecipe)
+          ));
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('레시피를 생성할 수 없습니다. 나중에 다시 시도해주세요.'),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      print('레시피 상세 화면 이동 중 오류: $e');
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('이 식단에는 저장된 레시피 정보가 없습니다.'), backgroundColor: Colors.orange),
+        SnackBar(
+          content: Text('오류가 발생했습니다: $e'),
+          backgroundColor: Colors.red,
+        ),
       );
     }
   }
