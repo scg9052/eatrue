@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "333694947953",
+    "project_id": "eatrue-5c78c",
+    "storage_bucket": "eatrue-5c78c.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:333694947953:android:4e09368b8a638f08c941d0",
+        "android_client_info": {
+          "package_name": "com.example.eatrue"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyALf7Cvd5IlE6N_RnsVRYnKn2AZEwYaXUA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
