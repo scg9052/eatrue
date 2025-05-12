@@ -135,10 +135,39 @@ class MealGenerationScreen extends StatelessWidget {
                         ),
                       ),
                     ),
-                  Image.asset(
-                    'assets/images/meal_generation.png',
+                  Image(
+                    image: AssetImage('assets/images/meal_generation.png'),
                     height: 200,
                     fit: BoxFit.contain,
+                    errorBuilder: (context, error, stackTrace) {
+                      // 이미지 로드 실패 시 대체 UI
+                      return Container(
+                        height: 200,
+                        width: 200,
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).colorScheme.primaryContainer.withOpacity(0.3),
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.restaurant_menu,
+                              size: 80,
+                              color: Theme.of(context).colorScheme.primary,
+                            ),
+                            SizedBox(height: 16),
+                            Text(
+                              '맞춤형 식단 생성',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: Theme.of(context).colorScheme.primary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
                   ),
                   SizedBox(height: 24),
                   Text(

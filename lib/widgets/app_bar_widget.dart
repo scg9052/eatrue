@@ -29,93 +29,95 @@ class EatrueAppBar extends StatelessWidget implements PreferredSizeWidget {
     final isSmallScreen = screenSize.height < 700;
     
     return AnimatedGradientContainer(
-      height: preferredSize.height, // 계산된 선호 높이 명시적 적용
+      height: preferredSize.height + 20, // 여유 공간 추가
       child: SafeArea(
         bottom: false,  // 하단은 SafeArea에서 제외
         child: LayoutBuilder(
           builder: (context, constraints) {
-            // 사용 가능한 공간에 맞게 크기 조정
-            return SingleChildScrollView( // 내용이 넘칠 경우 스크롤 가능하도록
-              physics: NeverScrollableScrollPhysics(), // 스크롤은 비활성화(오직 오버플로우 방지용)
-              child: ConstrainedBox(
+            // 여유 높이 추가
+            double availableHeight = constraints.maxHeight;
+            
+            return SingleChildScrollView( 
+              // 항상 스크롤 가능하게 설정
+              physics: NeverScrollableScrollPhysics(),
+              child: Container(
                 constraints: BoxConstraints(
-                  maxHeight: constraints.maxHeight,
+                  minHeight: 0,
+                  maxHeight: availableHeight,
                 ),
                 child: Column(
                   mainAxisSize: MainAxisSize.min, // 최소 크기로 설정
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     // 상단 앱바 (로고, 앱 이름, 액션 버튼)
-                    SizedBox(
-                      height: kToolbarHeight,
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            // 좌측: 로고와 앱 이름 (또는 뒤로가기 버튼)
-                            Row(
-                              mainAxisSize: MainAxisSize.min, // 딱 필요한 크기만 차지하도록 설정
-                              children: [
-                                if (showBackButton) ...[
-                                  IconButton(
-                                    icon: const Icon(Icons.arrow_back_ios, color: Colors.white),
-                                    onPressed: onBackPressed ?? () => Navigator.of(context).pop(),
-                                    padding: EdgeInsets.zero,
-                                    constraints: const BoxConstraints(),
-                                    iconSize: 20, // 아이콘 크기 줄임
-                                  ),
-                                  const SizedBox(width: 4), // 간격 줄임
-                                ],
-                                _buildLogo(),
-                                const SizedBox(width: 6), // 간격 줄임
-                                Text(
-                                  'Eatrue',
-                                  style: theme.appBarTheme.titleTextStyle?.copyWith(
-                                    fontSize: isSmallScreen ? 18 : 20, // 폰트 크기 줄임
-                                  ),
+                    Container(
+                      height: kToolbarHeight - 15, // 상단 영역 높이 더 줄임
+                      padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          // 좌측: 로고와 앱 이름 (또는 뒤로가기 버튼)
+                          Row(
+                            mainAxisSize: MainAxisSize.min, // 딱 필요한 크기만 차지하도록 설정
+                            children: [
+                              if (showBackButton) ...[
+                                IconButton(
+                                  icon: const Icon(Icons.arrow_back_ios, color: Colors.white),
+                                  onPressed: onBackPressed ?? () => Navigator.of(context).pop(),
+                                  padding: EdgeInsets.zero,
+                                  constraints: const BoxConstraints(),
+                                  iconSize: 16, // 아이콘 크기 더 줄임
                                 ),
+                                const SizedBox(width: 2), // 간격 더 줄임
                               ],
-                            ),
-                            
-                            // 우측: 액션 버튼들
-                            if (actions != null) Row(children: actions!),
-                          ],
-                        ),
+                              _buildLogo(),
+                              const SizedBox(width: 4), // 간격 더 줄임
+                              Text(
+                                'Eatrue',
+                                style: theme.appBarTheme.titleTextStyle?.copyWith(
+                                  fontSize: isSmallScreen ? 15 : 16, // 폰트 크기 더 줄임
+                                ),
+                              ),
+                            ],
+                          ),
+                          
+                          // 우측: 액션 버튼들
+                          if (actions != null) Row(children: actions!),
+                        ],
                       ),
                     ),
                     
-                    // 타이틀과 서브타이틀 영역 (위에 배치)
+                    // 타이틀과 서브타이틀 영역 (최소화)
                     if (title != null)
                       Padding(
                         padding: EdgeInsets.symmetric(
                           horizontal: 16.0,
-                          vertical: isSmallScreen ? 1.0 : 4.0, // 더 작은 패딩으로 조정
+                          vertical: 0,
                         ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.min, // 최소 크기로 설정
+                          mainAxisSize: MainAxisSize.min,
                           children: [
                             Text(
                               title!,
                               style: TextStyle(
-                                fontSize: isSmallScreen ? 16 : 20, // 폰트 크기 더 줄임
+                                fontSize: isSmallScreen ? 13 : 14, // 폰트 크기 더 줄임
                                 fontWeight: FontWeight.bold,
                                 color: Colors.white,
                               ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
-                            if (subtitle != null) ...[
-                              SizedBox(height: isSmallScreen ? 0 : 1), // 간격 더 줄임
+                            if (subtitle != null)
                               Text(
                                 subtitle!,
                                 style: TextStyle(
-                                  fontSize: isSmallScreen ? 10 : 12, // 폰트 크기 더 줄임
+                                  fontSize: isSmallScreen ? 8 : 9, // 폰트 크기 더 줄임
                                   color: Colors.white.withOpacity(0.8),
                                 ),
-                                maxLines: 1, // 한 줄만 표시
-                                overflow: TextOverflow.ellipsis, // 넘치면 ...으로 처리
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                               ),
-                            ],
                           ],
                         ),
                       ),
@@ -123,8 +125,7 @@ class EatrueAppBar extends StatelessWidget implements PreferredSizeWidget {
                     // 하단 위젯 (스텝퍼)
                     if (bottom != null) 
                       SizedBox(
-                        // 최대 높이 제한
-                        height: isSmallScreen ? 60 : 70, 
+                        height: isSmallScreen ? 35 : 40, // 더 작게 조정
                         child: bottom!,
                       ),
                   ],
@@ -142,16 +143,16 @@ class EatrueAppBar extends StatelessWidget implements PreferredSizeWidget {
     const Color logoColor = Color(0xFF43A047); // Colors.green[600]과 동일한 색상
     
     return Container(
-      width: 28, // 크기 줄임
-      height: 28, // 크기 줄임
+      width: 22, // 크기 더 줄임
+      height: 22, // 크기 더 줄임
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(6), // 더 작은 둥근 모서리
+        borderRadius: BorderRadius.circular(4), // 더 작은 둥근 모서리
       ),
       child: Center(
         child: Icon(
           Icons.eco,
-          size: 18, // 크기 줄임
+          size: 14, // 크기 더 줄임
           color: logoColor,
         ),
       ),
@@ -160,25 +161,28 @@ class EatrueAppBar extends StatelessWidget implements PreferredSizeWidget {
   
   @override
   Size get preferredSize {
-    // 동적으로 높이 계산
-    double totalHeight = kToolbarHeight;  // 기본 앱바 높이
+    // 동적으로 높이 계산 (더 많은 여유 공간 확보)
+    double totalHeight = kToolbarHeight - 15;  // 기본 앱바 높이 (더 줄임)
     
-    // 타이틀과 서브타이틀이 있는 경우 높이 추가
+    // 타이틀과 서브타이틀이 있는 경우 높이 추가 (최소화)
     if (title != null) {
-      totalHeight += 18 + 4;  // 타이틀 높이 + 패딩 (더 줄임)
+      totalHeight += 14;  // 타이틀 높이
       if (subtitle != null) {
-        totalHeight += 10 + 2;  // 서브타이틀 높이 + 패딩 (더 줄임)
+        totalHeight += 9;  // 서브타이틀 높이
       }
     }
     
     // bottom 위젯이 있는 경우 높이 추가 (스텝퍼)
     if (bottom != null) {
-      totalHeight += 70;  // 스텝퍼 위젯 높이 (고정값)
+      totalHeight += 35;  // 스텝퍼 위젯 높이 (더 줄임)
     }
+    
+    // 여유 공간 추가 (오버플로우 방지)
+    totalHeight += 15;
     
     // 사용자 지정 높이가 있으면 해당 값 사용
     if (height > kToolbarHeight) {
-      return Size.fromHeight(height);
+      return Size.fromHeight(height + 15); // 여유 공간 추가
     }
     
     return Size.fromHeight(totalHeight);

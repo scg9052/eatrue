@@ -30,20 +30,72 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _loadMealsForDate(DateTime date) async {
+    if (!mounted) return; // 위젯이 이미 제거된 경우 즉시 반환
+    
     setState(() {
       _isLoadingDate = true;
     });
     
-    // 0.5초 지연 (애니메이션 효과 확인용, 실제 앱에서는 제거)
-    await Future.delayed(Duration(milliseconds: 500));
+    try {
+      // 0.5초 지연 (애니메이션 효과 확인용, 실제 앱에서는 제거)
+      await Future.delayed(Duration(milliseconds: 500));
+      
+      if (!mounted) return; // 비동기 작업 후 위젯이 여전히 존재하는지 확인
+      
+      setState(() {
+        _selectedDate = date;
+        _isLoadingDate = false;
+      });
+      
+      // 콘솔에 선택된 날짜 출력
+      print("날짜 선택됨: ${DateFormat('yyyy-MM-dd').format(date)}");
+    } catch (e) {
+      print("날짜 로드 중 오류: $e");
+      
+      if (!mounted) return; // 예외 처리 후에도 위젯이 여전히 존재하는지 확인
+      
+      setState(() {
+        _isLoadingDate = false;
+      });
+    }
+  }
+
+  // 앱바 캘린더 아이콘 버튼 onPressed 핸들러
+  Future<void> _selectDate(BuildContext context) async {
+    if (!mounted) return; // mounted 상태 확인 추가
     
-    setState(() {
-      _selectedDate = date;
-      _isLoadingDate = false;
-    });
+    try {
+      final DateTime? pickedDate = await showDatePicker(
+        context: context,
+        initialDate: _selectedDate,
+        firstDate: DateTime(2023),
+        lastDate: DateTime(2025),
+        builder: (context, child) {
+          return Theme(
+            data: Theme.of(context).copyWith(
+              colorScheme: ColorScheme.light(
+                primary: Theme.of(context).colorScheme.primary,
+                onPrimary: Colors.white,
+              ),
+              dialogBackgroundColor: Colors.white,
+            ),
+            child: child!,
+          );
+        },
+      );
+      
+      if (pickedDate != null && mounted) { // mounted 상태 확인 추가
+        print("showDatePicker에서 선택된 날짜: ${DateFormat('yyyy-MM-dd').format(pickedDate)}");
+        await _loadMealsForDate(pickedDate);
+      }
+    } catch (e) {
+      print("DatePicker 오류: $e");
+    }
   }
 
   void _triggerGeneratePersonalizedMenu() {
+    if (!mounted) return; // mounted 상태 확인 추가
+    
     setState(() {
       _initialMenuGenerated = true;
     });
@@ -76,18 +128,10 @@ class _HomeScreenState extends State<HomeScreen> {
         subtitle: '건강한 식단 관리를 시작해보세요',
         actions: [
           IconButton(
-            icon: Icon(Icons.calendar_today, color: Colors.white),
-            onPressed: () async {
-              final DateTime? pickedDate = await showDatePicker(
-                context: context,
-                initialDate: _selectedDate,
-                firstDate: DateTime(2023),
-                lastDate: DateTime(2025),
-              );
-              if (pickedDate != null) {
-                _loadMealsForDate(pickedDate);
-              }
-            },
+            icon: Icon(Icons.calendar_today, color: Colors.white, size: 20),
+            padding: EdgeInsets.zero,
+            constraints: BoxConstraints(),
+            onPressed: () => _selectDate(context),
           ),
         ],
       ),
@@ -192,7 +236,14 @@ class _HomeScreenState extends State<HomeScreen> {
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 4.0),
                     child: InkWell(
-                      onTap: () => _loadMealsForDate(date),
+                      onTap: () async {
+                        // 날짜 선택 로직 개선
+                        print("날짜 선택됨 (주간 달력): ${DateFormat('yyyy-MM-dd').format(date)}");
+                        
+                        if (mounted) { // mounted 상태 확인 추가
+                          await _loadMealsForDate(date);
+                        }
+                      },
                       borderRadius: BorderRadius.circular(8),
                       child: Container(
                         padding: EdgeInsets.symmetric(vertical: 8),
@@ -227,7 +278,7 @@ class _HomeScreenState extends State<HomeScreen> {
   
   // 식단 목록 UI
   Widget _buildMealsList(MealProvider mealProvider) {
-    // 수정: Map<String, Meal?>에서 null이 아닌 항목만 필터링하여 새로운 Map 생성
+    // 강제로 현재 날짜의 식단 데이터 다시 로드
     final mealsByDateWithNulls = mealProvider.getMealsByDate(_selectedDate);
     final Map<String, Meal> mealsByType = {};
     
@@ -235,10 +286,16 @@ class _HomeScreenState extends State<HomeScreen> {
     mealsByDateWithNulls.forEach((key, meal) {
       if (meal != null) {
         mealsByType[key] = meal;
+        print("식단 항목 발견: ${meal.name} (${meal.category}) - 날짜: ${DateFormat('yyyy-MM-dd').format(meal.date)}");
       }
     });
     
+    // 데이터 디버깅
+    print("현재 선택된 날짜: ${DateFormat('yyyy-MM-dd').format(_selectedDate)}");
+    print("식단 항목 개수: ${mealsByType.length}");
+    
     if (mealProvider.isLoading) {
+      // 로딩 UI 표시
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -252,6 +309,7 @@ class _HomeScreenState extends State<HomeScreen> {
     }
     
     if (mealProvider.errorMessage != null) {
+      // 오류 UI 표시
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -280,6 +338,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final bool isToday = _isToday(_selectedDate);
     
     if (mealsByType.isEmpty && !_initialMenuGenerated && !hasGeneratedMenus) {
+      // 빈 상태 UI 표시
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -308,11 +367,26 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               textAlign: TextAlign.center,
             ),
+            
+            // 오늘 날짜인 경우 식단 생성 버튼 추가
+            if (isToday)
+              Padding(
+                padding: const EdgeInsets.only(top: 24.0),
+                child: ElevatedButton.icon(
+                  onPressed: _triggerGeneratePersonalizedMenu,
+                  icon: Icon(Icons.auto_awesome),
+                  label: Text('오늘의 식단 생성하기'),
+                  style: ElevatedButton.styleFrom(
+                    padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                  ),
+                ),
+              ),
           ],
         ),
       );
     }
-    
+
+    // 식단 목록 UI 표시
     return ListView(
       padding: EdgeInsets.all(16),
       children: [
@@ -722,64 +796,149 @@ class _HomeScreenState extends State<HomeScreen> {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             // 식단 베이스에 저장 버튼
-                            IconButton(
-                              icon: Icon(Icons.save_alt, color: Colors.green),
-                              tooltip: '식단 베이스에 저장',
-                              onPressed: () async {
-                                try {
-                                  // 메뉴를 식단 베이스에 저장
-                                  await mealProvider.saveSimpleMenuToMealBase(
-                                    menu, 
-                                    mealType, // 한글 카테고리 사용
-                                    ['추천 메뉴'], // 기본 태그
-                                  );
-                                  
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text('${menu.dishName}이(가) 식단 베이스에 저장되었습니다'),
-                                      backgroundColor: Colors.green,
-                                      behavior: SnackBarBehavior.floating,
-                                    ),
-                                  );
-                                } catch (e) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text('저장 실패: $e'),
-                                      backgroundColor: Colors.red,
-                                      behavior: SnackBarBehavior.floating,
-                                    ),
-                                  );
-                                }
-                              },
+                            Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                IconButton(
+                                  icon: Icon(Icons.save_alt, color: Colors.green, size: 20),
+                                  tooltip: '식단 베이스에 저장',
+                                  padding: EdgeInsets.all(8),
+                                  constraints: BoxConstraints(),
+                                  onPressed: () async {
+                                    try {
+                                      // 메뉴를 식단 베이스에 저장
+                                      await mealProvider.saveSimpleMenuToMealBase(
+                                        menu, 
+                                        mealType, // 한글 카테고리 사용
+                                        ['추천 메뉴'], // 기본 태그
+                                      );
+                                      
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        SnackBar(
+                                          content: Text('${menu.dishName}이(가) 식단 베이스에 저장되었습니다'),
+                                          backgroundColor: Colors.green,
+                                          behavior: SnackBarBehavior.floating,
+                                        ),
+                                      );
+                                    } catch (e) {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        SnackBar(
+                                          content: Text('저장 실패: $e'),
+                                          backgroundColor: Colors.red,
+                                          behavior: SnackBarBehavior.floating,
+                                        ),
+                                      );
+                                    }
+                                  },
+                                ),
+                                SizedBox(height: 2),
+                                Text('저장', style: TextStyle(fontSize: 10)),
+                              ],
                             ),
                             
                             // 기각 버튼
-                            IconButton(
-                              icon: Icon(Icons.thumb_down, color: Colors.red[400]),
-                              tooltip: '메뉴 기각',
-                              onPressed: () {
-                                _showRejectMenuDialog(context, menu, mealType);
-                              },
+                            Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                IconButton(
+                                  icon: Icon(Icons.thumb_down, color: Colors.red[400], size: 20),
+                                  tooltip: '메뉴 기각',
+                                  padding: EdgeInsets.all(8),
+                                  constraints: BoxConstraints(),
+                                  onPressed: () {
+                                    _showRejectMenuDialog(context, menu, mealType);
+                                  },
+                                ),
+                                SizedBox(height: 2),
+                                Text('기각', style: TextStyle(fontSize: 10)),
+                              ],
                             ),
                             
                             // 캘린더 추가 버튼
-                            IconButton(
-                              icon: Icon(Icons.add_circle_outline, color: Theme.of(context).colorScheme.primary),
-                              tooltip: '캘린더에 추가',
-                              onPressed: () async {
-                                Navigator.pop(context);
-                                
-                                // 메뉴 저장
-                                await mealProvider.saveSimpleMenuAsMeal(menu, date, mealType);
-                                
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text('${menu.dishName}이(가) $mealType에 추가되었습니다'),
-                                    backgroundColor: Colors.green,
-                                    behavior: SnackBarBehavior.floating,
-                                  ),
-                                );
-                              },
+                            Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                IconButton(
+                                  icon: Icon(Icons.add_circle_outline, color: Theme.of(context).colorScheme.primary, size: 20),
+                                  tooltip: '캘린더에 추가',
+                                  padding: EdgeInsets.all(8),
+                                  constraints: BoxConstraints(),
+                                  onPressed: () async {
+                                    // 로딩 다이얼로그 표시
+                                    showDialog(
+                                      context: context,
+                                      barrierDismissible: false,
+                                      builder: (context) => AlertDialog(
+                                        content: Row(
+                                          children: [
+                                            CircularProgressIndicator(),
+                                            SizedBox(width: 20),
+                                            Text('캘린더에 추가 중...'),
+                                          ],
+                                        ),
+                                      ),
+                                    );
+                                    
+                                    try {
+                                      // 레시피 상세 정보 로드 및 저장
+                                      final loadedRecipe = await mealProvider.loadRecipeDetails(menu.dishName);
+                                      if (loadedRecipe != null) {
+                                        final newMeal = Meal(
+                                          id: DateTime.now().millisecondsSinceEpoch.toString(),
+                                          name: _translateMenuName(loadedRecipe.title),
+                                          description: loadedRecipe.ingredients?.keys.take(3).join(', ') ?? '주요 재료 정보 없음',
+                                          calories: loadedRecipe.nutritionalInformation?['calories']?.toString() ?? '',
+                                          date: date,
+                                          category: mealType,
+                                          recipeJson: loadedRecipe.toJson(),
+                                        );
+                                        
+                                        await mealProvider.saveMeal(newMeal, date);
+                                        
+                                        // 성공 시 로딩 및 모달 닫기
+                                        Navigator.of(context).pop(); // 로딩 다이얼로그 닫기
+                                        Navigator.of(context).pop(); // 메뉴 선택 모달 닫기
+                                        
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          SnackBar(
+                                            content: Text('${menu.dishName}이(가) $mealType에 추가되었습니다'),
+                                            backgroundColor: Colors.green,
+                                            behavior: SnackBarBehavior.floating,
+                                          ),
+                                        );
+                                      } else {
+                                        // 레시피 로드 실패 시 기본 정보만으로 저장
+                                        await mealProvider.saveSimpleMenuAsMeal(menu, date, mealType);
+                                        
+                                        // 성공 시 로딩 및 모달 닫기
+                                        Navigator.of(context).pop(); // 로딩 다이얼로그 닫기
+                                        Navigator.of(context).pop(); // 메뉴 선택 모달 닫기
+                                        
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          SnackBar(
+                                            content: Text('${menu.dishName}이(가) $mealType에 추가되었습니다 (기본 정보만)'),
+                                            backgroundColor: Colors.green,
+                                            behavior: SnackBarBehavior.floating,
+                                          ),
+                                        );
+                                      }
+                                    } catch (e) {
+                                      // 오류 발생 시 로딩 다이얼로그 닫기
+                                      Navigator.of(context).pop();
+                                      
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        SnackBar(
+                                          content: Text('추가 실패: $e'),
+                                          backgroundColor: Colors.red,
+                                          behavior: SnackBarBehavior.floating,
+                                        ),
+                                      );
+                                    }
+                                  },
+                                ),
+                                SizedBox(height: 2),
+                                Text('추가', style: TextStyle(fontSize: 10)),
+                              ],
                             ),
                           ],
                         ),
@@ -857,77 +1016,149 @@ class _HomeScreenState extends State<HomeScreen> {
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 // 식단 베이스에 저장 버튼
-                                IconButton(
-                                  icon: Icon(Icons.save_alt, color: Colors.green),
-                                  tooltip: '식단 베이스에 저장',
-                                  onPressed: () async {
-                                    try {
-                                      // 메뉴를 식단 베이스에 저장
-                                      await mealProvider.saveSimpleMenuToMealBase(
-                                        meal, 
-                                        mealType, // 한글 카테고리 사용
-                                        ['추가 메뉴'], // 기본 태그
-                                      );
-                                      
-                                      ScaffoldMessenger.of(context).showSnackBar(
-                                        SnackBar(
-                                          content: Text('${meal.dishName}이(가) 식단 베이스에 저장되었습니다'),
-                                          backgroundColor: Colors.green,
-                                          behavior: SnackBarBehavior.floating,
-                                        ),
-                                      );
-                                    } catch (e) {
-                                      ScaffoldMessenger.of(context).showSnackBar(
-                                        SnackBar(
-                                          content: Text('저장 실패: $e'),
-                                          backgroundColor: Colors.red,
-                                          behavior: SnackBarBehavior.floating,
-                                        ),
-                                      );
-                                    }
-                                  },
+                                Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    IconButton(
+                                      icon: Icon(Icons.save_alt, color: Colors.green, size: 20),
+                                      tooltip: '식단 베이스에 저장',
+                                      padding: EdgeInsets.all(8),
+                                      constraints: BoxConstraints(),
+                                      onPressed: () async {
+                                        try {
+                                          // 메뉴를 식단 베이스에 저장
+                                          await mealProvider.saveSimpleMenuToMealBase(
+                                            meal, 
+                                            mealType, // 한글 카테고리 사용
+                                            ['추가 메뉴'], // 기본 태그
+                                          );
+                                          
+                                          ScaffoldMessenger.of(context).showSnackBar(
+                                            SnackBar(
+                                              content: Text('${meal.dishName}이(가) 식단 베이스에 저장되었습니다'),
+                                              backgroundColor: Colors.green,
+                                              behavior: SnackBarBehavior.floating,
+                                            ),
+                                          );
+                                        } catch (e) {
+                                          ScaffoldMessenger.of(context).showSnackBar(
+                                            SnackBar(
+                                              content: Text('저장 실패: $e'),
+                                              backgroundColor: Colors.red,
+                                              behavior: SnackBarBehavior.floating,
+                                            ),
+                                          );
+                                        }
+                                      },
+                                    ),
+                                    SizedBox(height: 2),
+                                    Text('저장', style: TextStyle(fontSize: 10)),
+                                  ],
                                 ),
                                 
                                 // 기각 버튼
-                                IconButton(
-                                  icon: Icon(Icons.thumb_down, color: Colors.red[400]),
-                                  tooltip: '메뉴 기각',
-                                  onPressed: () {
-                                    _showRejectMenuDialog(context, meal, mealType);
-                                  },
+                                Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    IconButton(
+                                      icon: Icon(Icons.thumb_down, color: Colors.red[400], size: 20),
+                                      tooltip: '메뉴 기각',
+                                      padding: EdgeInsets.all(8),
+                                      constraints: BoxConstraints(),
+                                      onPressed: () {
+                                        _showRejectMenuDialog(context, meal, mealType);
+                                      },
+                                    ),
+                                    SizedBox(height: 2),
+                                    Text('기각', style: TextStyle(fontSize: 10)),
+                                  ],
                                 ),
                                 
                                 // 캘린더 추가 버튼
-                                IconButton(
-                                  icon: Icon(Icons.add_circle_outline),
-                                  tooltip: '캘린더에 추가',
-                                  onPressed: () async {
-                                    Navigator.pop(context);
-                                    
-                                    // 레시피 상세 정보 로드 및 저장
-                                    final loadedRecipe = await mealProvider.loadRecipeDetails(meal.dishName);
-                                    if (loadedRecipe != null) {
-                                      final newMeal = Meal(
-                                        id: loadedRecipe.id,
-                                        name: _translateMenuName(loadedRecipe.title),
-                                        description: loadedRecipe.ingredients?.keys.take(3).join(', ') ?? '주요 재료 정보 없음',
-                                        calories: loadedRecipe.nutritionalInformation?['calories']?.toString() ?? '',
-                                        date: date,
-                                        category: mealType,
-                                        recipeJson: loadedRecipe.toJson(),
-                                      );
-                                      
-                                      mealProvider.saveMeal(newMeal, date);
-                                      
-                                      ScaffoldMessenger.of(context).showSnackBar(
-                                        SnackBar(
-                                          content: Text('${meal.dishName}이(가) $mealType에 추가되었습니다'),
-                                          backgroundColor: Colors.green,
-                                          behavior: SnackBarBehavior.floating,
-                                        ),
-                                      );
-                                    }
-                                  },
+                                Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    IconButton(
+                                      icon: Icon(Icons.add_circle_outline, color: Theme.of(context).colorScheme.primary, size: 20),
+                                      tooltip: '캘린더에 추가',
+                                      padding: EdgeInsets.all(8),
+                                      constraints: BoxConstraints(),
+                                      onPressed: () async {
+                                        // 로딩 다이얼로그 표시
+                                        showDialog(
+                                          context: context,
+                                          barrierDismissible: false,
+                                          builder: (context) => AlertDialog(
+                                            content: Row(
+                                              children: [
+                                                CircularProgressIndicator(),
+                                                SizedBox(width: 20),
+                                                Text('캘린더에 추가 중...'),
+                                              ],
+                                            ),
+                                          ),
+                                        );
+                                        
+                                        try {
+                                          // 레시피 상세 정보 로드 및 저장
+                                          final loadedRecipe = await mealProvider.loadRecipeDetails(meal.dishName);
+                                          if (loadedRecipe != null) {
+                                            final newMeal = Meal(
+                                              id: DateTime.now().millisecondsSinceEpoch.toString(),
+                                              name: _translateMenuName(loadedRecipe.title),
+                                              description: loadedRecipe.ingredients?.keys.take(3).join(', ') ?? '주요 재료 정보 없음',
+                                              calories: loadedRecipe.nutritionalInformation?['calories']?.toString() ?? '',
+                                              date: date,
+                                              category: mealType,
+                                              recipeJson: loadedRecipe.toJson(),
+                                            );
+                                            
+                                            await mealProvider.saveMeal(newMeal, date);
+                                            
+                                            // 성공 시 로딩 및 모달 닫기
+                                            Navigator.of(context).pop(); // 로딩 다이얼로그 닫기
+                                            Navigator.of(context).pop(); // 메뉴 선택 모달 닫기
+                                            
+                                            ScaffoldMessenger.of(context).showSnackBar(
+                                              SnackBar(
+                                                content: Text('${meal.dishName}이(가) $mealType에 추가되었습니다'),
+                                                backgroundColor: Colors.green,
+                                                behavior: SnackBarBehavior.floating,
+                                              ),
+                                            );
+                                          } else {
+                                            // 레시피 로드 실패 시 기본 정보만으로 저장
+                                            await mealProvider.saveSimpleMenuAsMeal(meal, date, mealType);
+                                            
+                                            // 성공 시 로딩 및 모달 닫기
+                                            Navigator.of(context).pop(); // 로딩 다이얼로그 닫기
+                                            Navigator.of(context).pop(); // 메뉴 선택 모달 닫기
+                                            
+                                            ScaffoldMessenger.of(context).showSnackBar(
+                                              SnackBar(
+                                                content: Text('${meal.dishName}이(가) $mealType에 추가되었습니다 (기본 정보만)'),
+                                                backgroundColor: Colors.green,
+                                                behavior: SnackBarBehavior.floating,
+                                              ),
+                                            );
+                                          }
+                                        } catch (e) {
+                                          // 오류 발생 시 로딩 다이얼로그 닫기
+                                          Navigator.of(context).pop();
+                                          
+                                          ScaffoldMessenger.of(context).showSnackBar(
+                                            SnackBar(
+                                              content: Text('추가 실패: $e'),
+                                              backgroundColor: Colors.red,
+                                              behavior: SnackBarBehavior.floating,
+                                            ),
+                                          );
+                                        }
+                                      },
+                                    ),
+                                    SizedBox(height: 2),
+                                    Text('추가', style: TextStyle(fontSize: 10)),
+                                  ],
                                 ),
                               ],
                             ),

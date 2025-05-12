@@ -244,7 +244,7 @@ class _SurveyScreenState extends State<SurveyScreen> with AutomaticKeepAliveClie
           subtitle: _getSubtitle(),
           bottom: stepperWidget,
           // 화면 크기에 따라 더 넉넉한 앱바 높이 설정
-          height: isSmallScreen ? kToolbarHeight + 100 : kToolbarHeight + 120,
+          height: isSmallScreen ? kToolbarHeight + 80 : kToolbarHeight + 100,
         ),
         body: _isLoading
             ? _buildLoadingView()

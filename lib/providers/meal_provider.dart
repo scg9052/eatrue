@@ -78,6 +78,9 @@ class MealProvider with ChangeNotifier {
 
   MenuGenerationService get menuGenerationService => _menuGenerationService;
 
+  bool _isProcessingSave = false; // 저장 작업 진행 중 여부
+  bool get isProcessingSave => _isProcessingSave;
+
   MealProvider(this._surveyDataProvider) {
     // 인증 상태 변경 감지
     _firebaseAuth.authStateChanges().listen((User? user) {
@@ -197,8 +200,7 @@ class MealProvider with ChangeNotifier {
           userRecommendedNutrients: _nutrientInfo!,
           customizedDietPlan: currentMenuJson!,
         );
-        print("메뉴 검증 결과: $verificationResult");
-
+        
         if (verificationResult == true || (verificationResult is String && verificationResult.trim().toLowerCase() == 'true')) {
           _setProgressMessage("메뉴 검증 통과!");
           _verificationFeedback = null;
@@ -214,35 +216,91 @@ class MealProvider with ChangeNotifier {
             _verificationFeedback = null;
             break;
           }
-          _setProgressMessage("검증된 피드백으로 메뉴 재 생성 중...");
-          currentMenuJson = await _menuGenerationService.generateMenu(
+          
+          regenerationAttempts++;
+          _setProgressMessage("검증된 피드백으로 메뉴 재생성 중 (시도: $regenerationAttempts)...");
+          
+          // 기존 구현에 맞춰서 메뉴 재생성
+          final regeneratedMenuJson = await _menuGenerationService.generateMenu(
             userRecommendedNutrients: _nutrientInfo!,
             summarizedDislikes: _dislikeSummary!,
             summarizedPreferences: _preferenceSummary!,
             previousMenu: _lastGeneratedMenuJson,
             verificationFeedback: _verificationFeedback,
           );
-          if (currentMenuJson == null) throw Exception("메뉴 재 생성에 실패했습니다.");
-          _lastGeneratedMenuJson = currentMenuJson;
-          print("메뉴 재 생성 완료 (JSON): $currentMenuJson");
+          
+          if (regeneratedMenuJson != null) {
+            currentMenuJson = regeneratedMenuJson;
+            _lastGeneratedMenuJson = currentMenuJson;
+            print("메뉴 재생성 완료");
+          } else {
+            print("메뉴 재생성 실패, 원본 메뉴 유지");
+            break;
+          }
         } else {
           _setProgressMessage("메뉴 검증 결과 처리 중 문제 발생. 현재 메뉴를 사용합니다.");
           _verificationFeedback = null;
           break;
         }
-        regenerationAttempts++;
       }
+      
+      print("최종 메뉴 JSON: $currentMenuJson");
       _parseAndSetGeneratedMenu(currentMenuJson);
+      
+      // 생성된 메뉴를 자동으로 식단 베이스에 추가
+      _setProgressMessage("식단 베이스에 메뉴 추가 중...");
+      await _autoSaveMainMenusToMealBase();
+      
       _setProgressMessage("맞춤 식단이 준비되었습니다!");
-    } catch (e) {
-      print("메뉴 오케스트레이션 중 오류: $e");
-      _errorMessage = e.toString();
-    } finally {
       _isLoading = false;
-      if (_errorMessage == null && _generatedMenuByMealType.isEmpty && _recommendedMeals.isEmpty) {
-        _errorMessage = "메뉴를 생성하지 못했습니다. 입력값을 확인하거나 다시 시도해주세요.";
-      }
       notifyListeners();
+    } catch (e) {
+      print("메뉴 생성 오류: $e");
+      _errorMessage = e.toString();
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+  
+  // 생성된 메인 메뉴를 자동으로 식단 베이스에 저장하는 메서드
+  Future<void> _autoSaveMainMenusToMealBase() async {
+    try {
+      if (_generatedMenuByMealType.isEmpty) {
+        print("저장할 생성된 메뉴가 없습니다.");
+        return;
+      }
+      
+      // 각 식사 유형별 메인 메뉴를 식단 베이스에 저장
+      final mealTypeMap = {
+        'breakfast': '아침',
+        'lunch': '점심', 
+        'dinner': '저녁'
+      };
+      
+      for (var entry in mealTypeMap.entries) {
+        final englishType = entry.key;
+        final koreanType = entry.value;
+        
+        if (_generatedMenuByMealType.containsKey(englishType) && 
+            _generatedMenuByMealType[englishType]!.isNotEmpty) {
+          // 각 식사 유형의 첫 번째 메뉴만 자동 저장
+          final menu = _generatedMenuByMealType[englishType]!.first;
+          
+          try {
+            await saveSimpleMenuToMealBase(
+              menu, 
+              koreanType, 
+              ['자동 생성', '추천 메뉴']
+            );
+            print("'$koreanType' 메뉴가 자동으로 식단 베이스에 저장되었습니다: ${menu.dishName}");
+          } catch (e) {
+            print("'$koreanType' 메뉴 자동 저장 중 오류: $e");
+            // 개별 메뉴 저장 실패는 전체 프로세스를 중단하지 않음
+          }
+        }
+      }
+    } catch (e) {
+      print("메뉴 자동 저장 중 오류: $e");
     }
   }
 
@@ -492,7 +550,9 @@ class MealProvider with ChangeNotifier {
             try {
               // date 필드에서 날짜 문자열 추출
               final DateTime mealDate = DateTime.parse(mealData['date']);
-              final String dateKey = "${mealDate.year}-${mealDate.month.toString().padLeft(2,'0')}-${mealDate.day.toString().padLeft(2,'0')}";
+              
+              // 일관된 형식으로 날짜 키 생성
+              final String dateKey = DateFormat('yyyy-MM-dd').format(mealDate);
               
               // Meal 객체 생성 전 유효성 검사
               final meal = Meal.fromJson(mealData);
@@ -500,6 +560,7 @@ class MealProvider with ChangeNotifier {
                 _savedMealsByDate[dateKey] = [];
               }
               _savedMealsByDate[dateKey]!.add(meal);
+              print('식단 로드됨: ${meal.name}, 날짜: $dateKey, 카테고리: ${meal.category}');
             } catch (e) {
               print('Meal 변환 오류: $e, 데이터: $mealData');
             }
@@ -507,6 +568,7 @@ class MealProvider with ChangeNotifier {
         }
         
         print("Firestore에서 저장된 식단 로드 완료: ${_savedMealsByDate.length} 일자의 식단");
+        print("저장된 날짜 목록: ${_savedMealsByDate.keys.join(', ')}");
       } else {
         print("Firestore에 저장된 식단 없음 (UID: $_currentUserId).");
         _savedMealsByDate.clear();
@@ -565,36 +627,110 @@ class MealProvider with ChangeNotifier {
   }
 
   Future<void> saveMeal(Meal meal, DateTime date) async {
-    if (_currentUserId == null || _currentUserId!.isEmpty) {
-      print("익명 사용자가 없어 식단을 저장할 수 없습니다.");
+    // 이미 저장 처리 중이면 중복 호출 방지
+    if (_isProcessingSave) {
+      print("⚠️ 이미 식단 저장 작업이 진행 중입니다. 중복 요청 무시.");
       return;
     }
     
-    String dateString = "${date.year}-${date.month.toString().padLeft(2,'0')}-${date.day.toString().padLeft(2,'0')}";
-    
-    // 메모리에 저장
-    if (_savedMealsByDate.containsKey(dateString)) {
-      if (!_savedMealsByDate[dateString]!.any((m) => m.id == meal.id)) {
-        _savedMealsByDate[dateString]!.add(meal);
-      }
-    } else {
-      _savedMealsByDate[dateString] = [meal];
+    if (_currentUserId == null || _currentUserId!.isEmpty) {
+      print("⚠️ 익명 사용자가 없어 식단을 저장할 수 없습니다.");
+      return;
     }
-    notifyListeners();
-
+    
+    // 저장 상태 설정
+    _isProcessingSave = true;
     try {
+      // 날짜 문자열 포맷 수정 - 일관된 날짜 형식 사용
+      String dateString = DateFormat('yyyy-MM-dd').format(date);
+      print("저장할 날짜: $dateString, 원본 날짜: ${date.toString()}");
+      
+      // Firestore에 먼저 저장 (주요 저장소)
+      print("Firestore에 식단 저장 시작: meals/${meal.id}");
+      
       // 단순화된 컬렉션 구조로 저장
       final Map<String, dynamic> dataToSave = meal.toJson();
+      
+      // Firebase에 저장하기 위한 추가 필드
       dataToSave['userId'] = _currentUserId; // 사용자 ID 추가
       
+      // 날짜 필드 확인 및 보정
+      if (!dataToSave.containsKey('date') || dataToSave['date'] == null) {
+        print("⚠️ 날짜 필드가 없거나 null입니다. 현재 날짜로 설정합니다.");
+        dataToSave['date'] = date.toIso8601String();
+      }
+      
+      // 현재 카테고리가 설정되어 있는지 확인
+      if (!dataToSave.containsKey('category') || dataToSave['category'] == null || dataToSave['category'].toString().isEmpty) {
+        print("⚠️ 카테고리 필드가 없거나 비어있습니다. 기본값으로 설정합니다.");
+        dataToSave['category'] = '기타';
+      }
+      
+      // Firestore 저장 전 로그
+      print("Firestore 저장 데이터: $dataToSave");
+      
+      // 데이터 저장 시도
       await _firestore
           .collection('meals')
           .doc(meal.id)
           .set(dataToSave);
       
-      print('식단이 Firestore에 저장되었습니다: ${meal.name} (UID: $_currentUserId)');
+      print('✅ 식단이 Firestore에 성공적으로 저장되었습니다: ${meal.name} (UID: $_currentUserId, 문서ID: ${meal.id})');
+      
+      // 확인을 위해 바로 다시 읽기 시도
+      try {
+        final docSnapshot = await _firestore.collection('meals').doc(meal.id).get();
+        if (docSnapshot.exists) {
+          print('✅ 저장 확인 성공: Firestore에 문서가 정상적으로 생성되었습니다.');
+          
+          // Firestore 저장이 성공한 후 메모리에 저장
+          if (_savedMealsByDate.containsKey(dateString)) {
+            // 같은 카테고리가 있는지 확인하고 기존 항목 교체
+            int existingIndex = -1;
+            for (int i = 0; i < _savedMealsByDate[dateString]!.length; i++) {
+              if (_savedMealsByDate[dateString]![i].category == meal.category) {
+                existingIndex = i;
+                break;
+              }
+            }
+            
+            if (existingIndex >= 0) {
+              // 같은 카테고리의 기존 식단이 있으면 교체
+              print("⚠️ 같은 날짜($dateString)에 동일 카테고리(${meal.category})의 식단이 있어 교체합니다.");
+              _savedMealsByDate[dateString]![existingIndex] = meal;
+            } else {
+              // 같은 카테고리가 없으면 추가
+              _savedMealsByDate[dateString]!.add(meal);
+              print("기존 날짜($dateString)에 새 식단 추가됨. 총 ${_savedMealsByDate[dateString]!.length}개");
+            }
+          } else {
+            _savedMealsByDate[dateString] = [meal];
+            print("새 날짜($dateString)에 첫번째 식단 추가됨");
+          }
+          
+          // 디버깅 정보 출력
+          print("현재 저장된 식단 정보:");
+          _savedMealsByDate.forEach((date, meals) {
+            print("  $date: ${meals.length}개 식단");
+            for (var m in meals) {
+              print("    - ${m.name} (${m.category})");
+            }
+          });
+          
+          notifyListeners(); // UI 업데이트
+          print("UI 갱신을 위한 notifyListeners() 호출 완료");
+        } else {
+          print('⚠️ 저장 확인 실패: 문서가 존재하지 않습니다!');
+        }
+      } catch (verifyError) {
+        print('⚠️ 저장 확인 중 오류: $verifyError');
+      }
     } catch (e) {
-      print('Firestore에 식단 저장 중 오류: $e');
+      print('❌ Firestore에 식단 저장 중 오류: $e');
+      throw Exception('Firestore 저장 실패: $e');
+    } finally {
+      // 저장 상태 초기화
+      _isProcessingSave = false;
     }
   }
 
@@ -679,37 +815,69 @@ class MealProvider with ChangeNotifier {
 
   // 날짜별로 아침/점심/저녁/간식 Map<String, Meal?> 반환
   Map<String, Meal?> getMealsByDate(DateTime date) {
-    final dateKey = DateTime(date.year, date.month, date.day).toIso8601String();
-    final meals = savedMealsByDate[dateKey] ?? [];
+    // 표준화된 날짜 키 형식 사용
+    final dateString = DateFormat('yyyy-MM-dd').format(date);
+    
+    print("getMealsByDate 호출됨: $dateString");
+    
+    // 저장된 식단 정보 확인
+    if (_savedMealsByDate.isEmpty) {
+      print("  저장된 식단 정보가 없습니다.");
+    } else {
+      print("  저장된 날짜 키 목록: ${_savedMealsByDate.keys.join(', ')}");
+      print("  찾는 날짜 키: $dateString");
+    }
+    
+    final meals = _savedMealsByDate[dateString] ?? [];
+    print("  찾은 식단 수: ${meals.length}");
+    
     Map<String, Meal?> result = {
       '아침': null,
       '점심': null,
       '저녁': null,
       '간식': null,
     };
+    
     for (final meal in meals) {
+      print("  식단 정보: ${meal.id}, ${meal.name}, ${meal.category}");
       result[meal.category] = meal;
     }
+    
     return result;
   }
 
   Future<void> saveSimpleMenuAsMeal(SimpleMenu menu, DateTime date, String mealType) async {
+    // 이미 처리 중이면 중복 호출 방지
+    if (_isProcessingSave) {
+      print("⚠️ 이미 식단 저장 작업이 진행 중입니다. 중복 요청 무시.");
+      return;
+    }
+    
+    _isProcessingSave = true;
     try {
+      print('캘린더에 메뉴 추가 시작: ${menu.dishName}, 날짜: ${date.toString()}, 타입: $mealType');
+      
       // 메뉴 이름이 영어인 경우 한글로 변환 시도
       String menuName = _translateMenuToKorean(menu.dishName);
+      print('한글 변환 결과: $menuName');
 
       // 먼저 레시피 상세 정보 로드 시도
+      print('레시피 상세 정보 로드 시도...');
       final Recipe? loadedRecipe = await _menuGenerationService.getSingleRecipeDetails(
         mealName: menu.dishName,
         userData: _surveyDataProvider.userData,
       );
       
+      print('레시피 로드 결과: ${loadedRecipe != null ? '성공' : '실패'}');
+      
       Meal meal;
+      String mealId = DateTime.now().millisecondsSinceEpoch.toString();
       
       if (loadedRecipe != null) {
         // 레시피 정보가 있는 경우
+        print('레시피 정보로 식단 생성');
         meal = Meal(
-          id: loadedRecipe.id,
+          id: mealId, // 고유 ID 생성 수정
           name: _translateMenuToKorean(loadedRecipe.title),
           description: loadedRecipe.ingredients?.keys.take(3).join(', ') ?? menu.description,
           calories: loadedRecipe.nutritionalInformation?['calories']?.toString() ?? '',
@@ -719,8 +887,9 @@ class MealProvider with ChangeNotifier {
         );
       } else {
         // 레시피 정보가 없는 경우 SimpleMenu 정보만으로 생성
+        print('SimpleMenu 정보로만 식단 생성');
         meal = Meal(
-          id: DateTime.now().millisecondsSinceEpoch.toString(),
+          id: mealId, // 고유 ID 생성 수정
           name: menuName,
           description: menu.description,
           calories: menu.calories ?? '',
@@ -730,22 +899,38 @@ class MealProvider with ChangeNotifier {
         );
       }
       
-      await saveMeal(meal, date);
-      print('메뉴가 저장되었습니다: ${menu.dishName}');
-    } catch (e) {
-      print('메뉴 저장 중 오류 발생: $e');
-      // 오류가 발생해도 기본 정보로 저장 시도
-      final meal = Meal(
-        id: DateTime.now().millisecondsSinceEpoch.toString(),
-        name: _translateMenuToKorean(menu.dishName),
-        description: menu.description,
-        calories: menu.calories ?? '',
-        date: date,
-        category: mealType,
-        recipeJson: null,
-      );
+      print('생성된 식단 객체: id=${meal.id}, name=${meal.name}, category=${meal.category}');
       
+      // Firestore에 저장 후 메모리에 저장하도록 saveMeal 호출
       await saveMeal(meal, date);
+      
+      print('메뉴가 성공적으로 저장되었습니다: ${menu.dishName}');
+    } catch (e) {
+      print('⚠️ 메뉴 저장 중 오류 발생: $e');
+      print('오류 발생 후 기본 정보로 저장 시도...');
+      
+      try {
+        // 오류가 발생해도 기본 정보로 저장 시도
+        String mealId = DateTime.now().millisecondsSinceEpoch.toString();
+        final meal = Meal(
+          id: mealId,
+          name: _translateMenuToKorean(menu.dishName),
+          description: menu.description,
+          calories: menu.calories ?? '',
+          date: date,
+          category: mealType,
+          recipeJson: null,
+        );
+        
+        await saveMeal(meal, date);
+        print('기본 정보로 저장 성공: id=${meal.id}');
+      } catch (fallbackError) {
+        print('⚠️ 기본 정보 저장 재시도 실패: $fallbackError');
+        // 오류 전파
+        rethrow;
+      }
+    } finally {
+      _isProcessingSave = false;
     }
   }
 

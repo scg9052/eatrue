@@ -663,34 +663,39 @@ class _MealBaseScreenState extends State<MealBaseScreen> with SingleTickerProvid
           builder: (context, setState) {
             return AlertDialog(
               title: Text('식단 평가'),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(mealBase.name, style: TextStyle(fontWeight: FontWeight.bold)),
-                  SizedBox(height: 16),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: List.generate(5, (index) {
-                      return IconButton(
-                        icon: Icon(
-                          index < currentRating.round() ? Icons.star : Icons.star_border,
-                          color: Colors.amber,
-                          size: 32,
-                        ),
-                        onPressed: () {
-                          setState(() {
-                            currentRating = index + 1.0;
-                          });
-                        },
-                      );
-                    }),
-                  ),
-                  SizedBox(height: 8),
-                  Text(
-                    currentRating > 0 ? '$currentRating / 5.0' : '평가하지 않음',
-                    style: TextStyle(fontSize: 16),
-                  ),
-                ],
+              content: Container(
+                width: double.maxFinite,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(mealBase.name, style: TextStyle(fontWeight: FontWeight.bold)),
+                    SizedBox(height: 16),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: List.generate(5, (index) {
+                        return IconButton(
+                          icon: Icon(
+                            index < currentRating.round() ? Icons.star : Icons.star_border,
+                            color: Colors.amber,
+                            size: 26,
+                          ),
+                          padding: EdgeInsets.all(4),
+                          constraints: BoxConstraints(),
+                          onPressed: () {
+                            setState(() {
+                              currentRating = index + 1.0;
+                            });
+                          },
+                        );
+                      }),
+                    ),
+                    SizedBox(height: 8),
+                    Text(
+                      currentRating > 0 ? '$currentRating / 5.0' : '평가하지 않음',
+                      style: TextStyle(fontSize: 16),
+                    ),
+                  ],
+                ),
               ),
               actions: [
                 TextButton(

@@ -53,6 +53,10 @@ class _SurveyPageFoodPreferenceState extends State<SurveyPageFoodPreference> {
     '경제적인 식사'
   ];
 
+  // 포커스 노드 추가
+  final FocusNode _favoriteFoodFocusNode = FocusNode();
+  final FocusNode _dislikedFoodFocusNode = FocusNode();
+
   @override
   void initState() {
     super.initState();
@@ -171,6 +175,7 @@ class _SurveyPageFoodPreferenceState extends State<SurveyPageFoodPreference> {
     required List<String> itemList, 
     required Function(String) onAdd, 
     required Function(String) onRemove,
+    required FocusNode focusNode,
     IconData? listIcon, 
     String? hintText, 
     Color? chipColor,
@@ -183,7 +188,8 @@ class _SurveyPageFoodPreferenceState extends State<SurveyPageFoodPreference> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _buildSectionLabel(fieldLabel, isRequired: isRequired),
-        Container(
+        AnimatedContainer(
+          duration: Duration(milliseconds: 300),
           padding: itemList.isNotEmpty ? EdgeInsets.all(12) : EdgeInsets.zero,
           decoration: itemList.isNotEmpty ? BoxDecoration(
             color: theme.inputDecorationTheme.fillColor,
@@ -193,30 +199,16 @@ class _SurveyPageFoodPreferenceState extends State<SurveyPageFoodPreference> {
           child: Wrap(
             spacing: 8.0, 
             runSpacing: 8.0,
-            children: itemList.map((item) => Chip(
-              avatar: listIcon != null ? Icon(listIcon, size: 18, color: accentColor) : null,
-              label: Text(
-                item, 
-                style: TextStyle(
-                  color: accentColor,
-                  fontWeight: FontWeight.w500
-                )
-              ),
-              onDeleted: () { 
+            children: itemList.map((item) => _buildAnimatedChip(
+              item,
+              listIcon,
+              accentColor,
+              () { 
                 setState(() { 
                   onRemove(item); 
                   _updateParent(); 
                 }); 
               },
-              deleteIcon: Icon(Icons.close, size: 18), 
-              deleteIconColor: Colors.red[400],
-              backgroundColor: accentColor.withOpacity(0.1), 
-              padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              elevation: 0,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(20),
-                side: BorderSide(color: accentColor.withOpacity(0.3), width: 1)
-              ),
             )).toList(),
           ),
         ),
@@ -226,6 +218,7 @@ class _SurveyPageFoodPreferenceState extends State<SurveyPageFoodPreference> {
           children: [
             Expanded(
               child: TextField(
+                focusNode: focusNode,
                 controller: controller,
                 decoration: _inputDecoration(
                   inputLabel, 
@@ -238,6 +231,8 @@ class _SurveyPageFoodPreferenceState extends State<SurveyPageFoodPreference> {
                       onAdd(value.trim()); 
                       controller.clear(); 
                       _updateParent(); 
+                      // 포커스 유지
+                      focusNode.requestFocus();
                     }); 
                   }
                 },
@@ -252,6 +247,8 @@ class _SurveyPageFoodPreferenceState extends State<SurveyPageFoodPreference> {
                     onAdd(value); 
                     controller.clear(); 
                     _updateParent(); 
+                    // 포커스 유지
+                    focusNode.requestFocus();
                   }); 
                 }
               },
@@ -269,6 +266,43 @@ class _SurveyPageFoodPreferenceState extends State<SurveyPageFoodPreference> {
           ],
         ),
       ],
+    );
+  }
+  
+  // 애니메이션이 적용된 Chip 위젯 생성
+  Widget _buildAnimatedChip(String label, IconData? icon, Color accentColor, VoidCallback onDelete) {
+    return TweenAnimationBuilder<double>(
+      tween: Tween<double>(begin: 0.0, end: 1.0),
+      duration: Duration(milliseconds: 300),
+      curve: Curves.easeInOut,
+      builder: (BuildContext context, double value, Widget? child) {
+        return Transform.scale(
+          scale: value,
+          child: Opacity(
+            opacity: value,
+            child: Chip(
+              avatar: icon != null ? Icon(icon, size: 18, color: accentColor) : null,
+              label: Text(
+                label, 
+                style: TextStyle(
+                  color: accentColor,
+                  fontWeight: FontWeight.w500
+                )
+              ),
+              onDeleted: onDelete,
+              deleteIcon: Icon(Icons.close, size: 18), 
+              deleteIconColor: Colors.red[400],
+              backgroundColor: accentColor.withOpacity(0.1), 
+              padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+                side: BorderSide(color: accentColor.withOpacity(0.3), width: 1)
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -641,21 +675,74 @@ class _SurveyPageFoodPreferenceState extends State<SurveyPageFoodPreference> {
             Expanded(
               child: TextField(
                 controller: _mealBudgetController,
-                decoration: _inputDecoration(
-                  '1인분 기준 예산', 
-                  hint: '예: 10000', 
-                  icon: Icons.monetization_on_outlined,
+                decoration: InputDecoration(
+                  label: RichText(
+                    text: TextSpan(
+                      text: '1인분 기준 예산',
+                      style: TextStyle(
+                        color: Theme.of(context).textTheme.bodyMedium?.color, 
+                        fontSize: MediaQuery.of(context).size.height < 700 ? 14 : 16,
+                        fontFamily: 'NotoSansKR'
+                      ),
+                      children: <TextSpan>[
+                        TextSpan(text: ' *', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+                      ],
+                    ),
+                  ),
+                  hintText: '예: 10000',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12.0),
+                    borderSide: BorderSide(color: Theme.of(context).dividerColor)
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12.0),
+                    borderSide: BorderSide(color: Theme.of(context).dividerColor)
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12.0),
+                    borderSide: BorderSide(color: Theme.of(context).colorScheme.primary, width: 2.0)
+                  ),
+                  filled: true,
+                  fillColor: Theme.of(context).inputDecorationTheme.fillColor,
+                  prefixIcon: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 8),
+                        child: Icon(Icons.monetization_on_outlined, color: Theme.of(context).colorScheme.primary, size: 20),
+                      ),
+                      Container(
+                        padding: EdgeInsets.symmetric(vertical: 8),
+                        child: Text(
+                          '₩',
+                          style: TextStyle(
+                            fontSize: 16,
+                            color: Colors.grey[700],
+                            fontWeight: FontWeight.bold
+                          ),
+                        ),
+                      ),
+                      SizedBox(width: 8), // 텍스트 필드 내용과의 간격
+                    ],
+                  ),
                   suffixIcon: Padding(
                     padding: EdgeInsets.only(right: 12),
                     child: Text(
-                      '원', 
+                      '₩',
                       style: TextStyle(
                         fontSize: 16, 
                         color: Colors.grey[600]
                       )
                     ),
                   ),
-                  isRequired: true,
+                  prefixIconConstraints: BoxConstraints(minWidth: 0, minHeight: 0),
+                  contentPadding: EdgeInsets.only(
+                    left: 60, // 원화 기호와 입력 텍스트 사이의 간격 확보
+                    right: 16,
+                    top: 14,
+                    bottom: 14
+                  ),
+                  isDense: MediaQuery.of(context).size.height < 700,
                 ),
                 keyboardType: TextInputType.number,
                 inputFormatters: [FilteringTextInputFormatter.digitsOnly],
@@ -682,6 +769,7 @@ class _SurveyPageFoodPreferenceState extends State<SurveyPageFoodPreference> {
             if (!_favoriteFoods.contains(food)) _favoriteFoods.add(food);
           },
           onRemove: (food) => _favoriteFoods.remove(food),
+          focusNode: _favoriteFoodFocusNode,
           listIcon: Icons.favorite,
           chipColor: Colors.red[400],
         ),
@@ -698,6 +786,7 @@ class _SurveyPageFoodPreferenceState extends State<SurveyPageFoodPreference> {
             if (!_dislikedFoods.contains(food)) _dislikedFoods.add(food);
           },
           onRemove: (food) => _dislikedFoods.remove(food),
+          focusNode: _dislikedFoodFocusNode,
           listIcon: Icons.not_interested,
           chipColor: Colors.grey[700],
         ),
@@ -717,6 +806,11 @@ class _SurveyPageFoodPreferenceState extends State<SurveyPageFoodPreference> {
     _dislikedFoodController.dispose();
     // _favoriteSeasoningController.dispose();
     // _dislikedSeasoningController.dispose();
+    
+    // 포커스 노드 정리
+    _favoriteFoodFocusNode.dispose();
+    _dislikedFoodFocusNode.dispose();
+    
     super.dispose();
   }
 }
