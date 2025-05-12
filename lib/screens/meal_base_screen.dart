@@ -200,7 +200,7 @@ class _MealBaseScreenState extends State<MealBaseScreen> with SingleTickerProvid
                         ),
                         SizedBox(height: 4),
                         Text(
-                          mealBase.description,
+                          mealBase.description ?? '설명 없음',
                           style: TextStyle(
                             fontSize: 14,
                             color: Colors.grey[700],
@@ -402,7 +402,7 @@ class _MealBaseScreenState extends State<MealBaseScreen> with SingleTickerProvid
               ),
               SizedBox(height: 16),
               Text(
-                mealBase.description,
+                mealBase.description ?? '설명 없음',
                 style: TextStyle(
                   fontSize: 14,
                   color: Colors.grey[700],

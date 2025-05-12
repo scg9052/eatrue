@@ -7,6 +7,7 @@ import '../widgets/app_bar_widget.dart';
 import '../providers/survey_data_provider.dart';
 import '../providers/meal_provider.dart';
 import '../services/food_analysis_service.dart';
+import '../widgets/progress_loading.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({Key? key}) : super(key: key);
@@ -90,6 +91,7 @@ class MealGenerationScreen extends StatelessWidget {
     final surveyDataProvider = Provider.of<SurveyDataProvider>(context);
     final isLoading = mealProvider.isLoading;
     final progressMessage = mealProvider.progressMessage;
+    final progressPercentage = mealProvider.progressPercentage;
     final errorMessage = mealProvider.errorMessage;
     
     return Scaffold(
@@ -98,15 +100,9 @@ class MealGenerationScreen extends StatelessWidget {
         subtitle: '개인 맞춤 식단을 생성합니다',
       ),
       body: isLoading 
-          ? Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  CircularProgressIndicator(),
-                  SizedBox(height: 20),
-                  Text(progressMessage ?? '로딩 중...'),
-                ],
-              ),
+          ? FullScreenProgressLoading(
+              message: progressMessage ?? '로딩 중...',
+              progress: progressPercentage,
             )
           : Padding(
               padding: const EdgeInsets.all(16.0),
@@ -231,15 +227,8 @@ class ProfileScreen extends StatelessWidget {
       
       // 로딩 화면 표시
       return Scaffold(
-        body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              CircularProgressIndicator(),
-              SizedBox(height: 20),
-              Text('사용자 정보를 확인 중입니다...'),
-            ],
-          ),
+        body: FullScreenProgressLoading(
+          message: '사용자 정보를 확인 중입니다...',
         ),
       );
     }

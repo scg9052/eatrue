@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../models/user_data.dart';
 import '../../providers/survey_data_provider.dart';
 
 class SurveyPageHealthInfo extends StatefulWidget {
@@ -362,20 +361,6 @@ class _SurveyPageHealthInfoState extends State<SurveyPageHealthInfo> {
           ),
         ),
       ],
-    );
-  }
-  
-  Widget _buildChip(String label, {required bool isSelected, required Function() onSelected}) {
-    final theme = Theme.of(context);
-    return ChoiceChip(
-      label: Text(label),
-      selected: isSelected,
-      onSelected: (_) => onSelected(),
-      labelStyle: TextStyle(
-        color: isSelected ? Colors.white : theme.textTheme.bodyMedium?.color,
-      ),
-      backgroundColor: theme.chipTheme.backgroundColor,
-      selectedColor: theme.colorScheme.primary,
     );
   }
 } 

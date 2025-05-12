@@ -1,9 +1,9 @@
 // services/meal_base_service.dart
-import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/meal_base.dart';
-import '../models/meal.dart';
+import 'package:firebase_vertexai/firebase_vertexai.dart';
 
 class MealBaseService {
   final FirebaseAuth _firebaseAuth = FirebaseAuth.instance;
@@ -73,10 +73,10 @@ class MealBaseService {
         defaults.add(
           MealBase(
             id: 'default_${category}_$i',
+            userId: currentUserId ?? 'anonymous',
             name: '기본 ${category} 메뉴 ${i+1}',
             description: '로컬에서 생성된 기본 ${category} 메뉴입니다.',
             category: category,
-            calories: '약 ${300 + i * 50}kcal',
             tags: ['기본', category, '로컬'],
             createdAt: DateTime.now().subtract(Duration(days: i)),
             lastUsedAt: i % 2 == 0 ? DateTime.now().subtract(Duration(hours: i * 6)) : null,
@@ -366,8 +366,10 @@ class MealBaseService {
       final results = snapshot.docs
           .map((doc) => MealBase.fromJson(doc.data() as Map<String, dynamic>))
           .where((mealBase) {
-            final searchableText = '${mealBase.name} ${mealBase.description}'.toLowerCase();
-            return searchableText.contains(query.toLowerCase());
+            final nameText = mealBase.name.toLowerCase();
+            final descText = mealBase.description?.toLowerCase() ?? '';
+            return nameText.contains(query.toLowerCase()) || 
+                   descText.contains(query.toLowerCase());
           })
           .toList();
       
@@ -376,5 +378,10 @@ class MealBaseService {
       print('텍스트 기반 식단 베이스 검색 중 오류: $e');
       return [];
     }
+  }
+
+  void _logUserAction(String action, MealBase mealBase) {
+    print("User action: $action on meal base ${mealBase.id}");
+    print("Meal base details: category=${mealBase.category}, name=${mealBase.name}");
   }
 } 

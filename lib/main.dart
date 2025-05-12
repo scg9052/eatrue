@@ -1,18 +1,17 @@
 // main.dart
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:provider/provider.dart';
 
-import 'screens/survey_screen.dart';
-import 'screens/home_screen.dart';
-import 'screens/main_screen.dart';
-import 'screens/initial_screen.dart';
-import 'screens/meal_base_screen.dart';
 import 'providers/survey_data_provider.dart';
 import 'providers/meal_provider.dart';
+import 'screens/initial_screen.dart';
+import 'screens/survey_screen.dart';
+import 'screens/main_screen.dart';
 import 'theme/app_theme.dart';
+import 'widgets/progress_loading.dart';
 
 import 'package:flutter_localizations/flutter_localizations.dart';
 
@@ -73,15 +72,8 @@ class InitialScreenDecider extends StatelessWidget {
         if (surveyData.isLoading) {
           print("InitialScreenDecider: SurveyData is loading. UID from Auth: ${FirebaseAuth.instance.currentUser?.uid}");
           return Scaffold(
-            body: Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  CircularProgressIndicator(),
-                  SizedBox(height: 20),
-                  Text("사용자 정보 로딩 중..."),
-                ],
-              ),
+            body: FullScreenProgressLoading(
+              message: "사용자 정보 로딩 중...",
             ),
           );
         }

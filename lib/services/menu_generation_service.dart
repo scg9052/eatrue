@@ -1,12 +1,23 @@
 // services/menu_generation_service.dart
 import 'dart:convert';
+import 'dart:async'; // 타임아웃 설정용
 import 'package:firebase_vertexai/firebase_vertexai.dart';
 import '../models/recipe.dart'; // Recipe 모델 import
 import '../models/user_data.dart'; // UserData 모델 import
+import 'package:shared_preferences/shared_preferences.dart'; // 캐싱용
+import '../models/simple_menu.dart';
 
 class MenuGenerationService {
   final FirebaseVertexAI _vertexAI;
   final String _modelName = 'gemini-2.5-flash-preview-04-17';
+  
+  // 메뉴 응답 캐싱용 변수
+  Map<String, dynamic>? _cachedMenuResponse;
+  DateTime? _lastMenuGenerationTime;
+  String? _lastMenuGenerationKey;
+
+  // 타임아웃 설정
+  final Duration _defaultTimeout = Duration(seconds: 30);
 
   MenuGenerationService({FirebaseVertexAI? vertexAI})
       : _vertexAI = vertexAI ?? FirebaseVertexAI.instanceFor(location: 'us-central1');
@@ -31,6 +42,104 @@ class MenuGenerationService {
     ];
   }
 
+  // 메뉴 생성을 위한 캐시 키 생성
+  String _generateMenuCacheKey(Map<String, dynamic> nutrients, String dislikes, String preferences) {
+    // 간단한 해시 생성 (실제로는 더 강력한 해싱 알고리즘 사용 권장)
+    final hash = '${nutrients.hashCode}_${dislikes.hashCode}_${preferences.hashCode}';
+    return 'menu_cache_$hash';
+  }
+
+  // 캐시에서 메뉴 로드
+  Future<Map<String, dynamic>?> _loadMenuFromCache(String cacheKey) async {
+    try {
+      // 메모리 캐시 확인
+      if (_cachedMenuResponse != null && 
+          _lastMenuGenerationKey == cacheKey &&
+          _lastMenuGenerationTime != null) {
+        // 캐시가 1시간 이내인 경우에만 사용
+        final cacheDuration = DateTime.now().difference(_lastMenuGenerationTime!);
+        if (cacheDuration.inHours < 1) {
+          print("✅ 메모리 캐시에서 메뉴 로드됨 (캐시 생성 후 ${cacheDuration.inMinutes}분 경과)");
+          return _cachedMenuResponse;
+        }
+      }
+      
+      // 로컬 스토리지 캐시 확인
+      final prefs = await SharedPreferences.getInstance();
+      final menuCacheJson = prefs.getString(cacheKey);
+      
+      if (menuCacheJson != null) {
+        final cacheTimestamp = prefs.getInt('${cacheKey}_timestamp') ?? 0;
+        final cacheTime = DateTime.fromMillisecondsSinceEpoch(cacheTimestamp);
+        final cacheDuration = DateTime.now().difference(cacheTime);
+        
+        // 캐시가 12시간 이내인 경우에만 사용
+        if (cacheDuration.inHours < 12) {
+          final cachedMenu = json.decode(menuCacheJson) as Map<String, dynamic>;
+          print("✅ 로컬 캐시에서 메뉴 로드됨 (캐시 생성 후 ${cacheDuration.inHours}시간 경과)");
+          
+          // 메모리 캐시도 업데이트
+          _cachedMenuResponse = cachedMenu;
+          _lastMenuGenerationTime = cacheTime;
+          _lastMenuGenerationKey = cacheKey;
+          
+          return cachedMenu;
+        } else {
+          print("⚠️ 로컬 캐시가 만료됨 (${cacheDuration.inHours}시간 경과)");
+          // 만료된 캐시 삭제
+          prefs.remove(cacheKey);
+          prefs.remove('${cacheKey}_timestamp');
+        }
+      }
+      
+      return null;
+    } catch (e) {
+      print("⚠️ 캐시 로드 중 오류: $e");
+      return null;
+    }
+  }
+
+  // 캐시에 메뉴 저장
+  Future<void> _saveMenuToCache(String cacheKey, Map<String, dynamic> menuResponse) async {
+    try {
+      // 메모리 캐시 업데이트
+      _cachedMenuResponse = menuResponse;
+      _lastMenuGenerationTime = DateTime.now();
+      _lastMenuGenerationKey = cacheKey;
+      
+      // 로컬 스토리지 캐시 업데이트
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(cacheKey, json.encode(menuResponse));
+      await prefs.setInt('${cacheKey}_timestamp', DateTime.now().millisecondsSinceEpoch);
+      print("✅ 메뉴가 캐시에 저장됨");
+    } catch (e) {
+      print("⚠️ 캐시 저장 중 오류: $e");
+    }
+  }
+
+  // 타임아웃 적용된 API 호출
+  Future<dynamic> _callGenerativeModelWithTimeout(
+      String systemInstructionText, String userPrompt, {
+      String? modelNameOverride,
+      Duration? timeout}) async {
+    
+    final effectiveTimeout = timeout ?? _defaultTimeout;
+    
+    try {
+      return await _callGenerativeModelForJson(
+        systemInstructionText, 
+        userPrompt,
+        modelNameOverride: modelNameOverride,
+      ).timeout(effectiveTimeout, onTimeout: () {
+        print("⚠️ API 호출 타임아웃 (${effectiveTimeout.inSeconds}초)");
+        return null;
+      });
+    } catch (e) {
+      print("❌ API 호출 중 오류 (타임아웃 처리): $e");
+      return null;
+    }
+  }
+
   Future<dynamic> _callGenerativeModelForJson(
       String systemInstructionText, String userPrompt, {String? modelNameOverride}) async {
     try {
@@ -42,8 +151,11 @@ class MenuGenerationService {
         systemInstruction: systemInstruction,
       );
       final chat = model.startChat();
+      final startTime = DateTime.now();
       final response = await chat.sendMessage(Content.text(userPrompt));
-      print("Vertex AI 응답 요청 완료. 데이터 확인 중...");
+      final endTime = DateTime.now();
+      final duration = endTime.difference(startTime);
+      print("Vertex AI 응답 소요시간: ${duration.inMilliseconds}ms");
       
       if (response.text == null || response.text!.isEmpty) {
         print("오류: Vertex AI가 빈 응답을 반환했습니다.");
@@ -245,56 +357,162 @@ class MenuGenerationService {
     }
   }
 
-  // 전체 메뉴 생성 API (기존 메소드)
+  // 메뉴 생성 메서드 - 캐싱 및 최적화 적용
   Future<Map<String, dynamic>?> generateMenu({
     required Map<String, dynamic> userRecommendedNutrients,
     required String summarizedDislikes,
     required String summarizedPreferences,
-    Map<String, dynamic>? previousMenu,
-    Map<String, String>? verificationFeedback,
+    bool useCache = true, // 캐시 사용 여부
+    Duration? timeout, // 타임아웃 설정
+    Map<String, dynamic>? previousMenu, // 이전 메뉴 (재생성용)
+    Map<String, String>? verificationFeedback, // 검증 피드백 (재생성용)
   }) async {
-    const systemInstructionText =
-        'You are a nutrition expert and menu planner. Your task is to generate a meal plan (not recipes) based on the user\'s dietary requirements, preferences, and dislikes. The meal plan should include ONLY the dish name, category (breakfast, lunch, dinner, snack), and a short description. Do NOT include any cooking instructions, detailed ingredients, nutritional information, or seasonings. Absolutely NO recipe or cooking details should be generated at this stage.';
-    final String specificModelNameForFullMenu = 'gemini-2.5-flash-preview-04-17';
+    // 재생성 모드일 경우 캐시를 사용하지 않음
+    if (previousMenu != null && verificationFeedback != null) {
+      useCache = false;
+    }
+    
+    // 캐시 키 생성
+    final cacheKey = _generateMenuCacheKey(
+      userRecommendedNutrients, 
+      summarizedDislikes, 
+      summarizedPreferences
+    );
+    
+    // 캐시 사용 설정이면서 캐시에 데이터가 있는 경우 캐시 데이터 반환
+    if (useCache) {
+      final cachedMenu = await _loadMenuFromCache(cacheKey);
+      if (cachedMenu != null) {
+        return cachedMenu;
+      }
+    }
+    
+    print("🔄 Vertex AI에 메뉴 생성 요청 시작...");
+    final startTime = DateTime.now();
+    
+    // 기본 시스템 지시문
+    const baseSystemInstruction = '''
+    당신은 사용자에게 개인 맞춤형 음식과 식단을 추천하는 영양학 및 식이 전문가입니다.
+    항상 JSON 형식으로만 응답하세요.
+    중요: 항상 JSON 형식으로 응답하고, 모든 속성명은 영어(snake_case)로 작성하세요.
+    코드 블록 (```) 또는 설명 없이 JSON만 반환하세요.
+    ''';
+    
+    // 재생성 모드일 경우 추가 지시문
+    final systemInstruction = previousMenu != null && verificationFeedback != null
+        ? baseSystemInstruction + '''
+    주의: 이 요청은 이전에 생성된 메뉴를 수정하는 요청입니다.
+    검증에서 통과한 항목(verificationFeedback에 포함되지 않은 항목)은 그대로 유지하고, 
+    검증에 실패한 항목(verificationFeedback에 포함된 항목)만 새로운 메뉴로 대체하세요.
+    '''
+        : baseSystemInstruction;
 
-    final nutrientsJson = jsonEncode(userRecommendedNutrients);
-    final previousMenuJson = previousMenu != null ? jsonEncode(previousMenu) : "None";
-    final verificationFeedbackJson = verificationFeedback != null ? jsonEncode(verificationFeedback) : "None";
-
-    final userPrompt = '''
-To generate a personalized meal plan, please consider the following information:
-
-* Daily Recommended Nutrients: $nutrientsJson
-* Summarized Dislikes: $summarizedDislikes
-* Summarized Preferences: $summarizedPreferences
-* Previous Menu (Optional, for regeneration): $previousMenuJson
-* Verification Feedback (Optional, for regeneration): $verificationFeedbackJson
-
-Follow these instructions to create the meal plan:
-1.  **Meal Plan Generation:**
-    * Create a meal plan that aligns with the user's daily calorie recommendation and recommended protein intake, specified in "Daily Recommended Nutrients".
-    * Take into account the user's summarized dislikes and preferences to ensure the meal plan is personalized.
-    * Provide three dish options for each meal (breakfast, lunch, dinner, and snacks).
-    * If `previous_menu` and `verification_feedback` are provided, regenerate the meal plan, keeping the verified items and generating new options for the unverified ones. The `verification_feedback` will be in the format of "meal[index]" (e.g., "breakfast[0]", "lunch[2]") indicating the accepted menu items.
-2.  **Details for Each Dish:**
-    * For each dish, include ONLY the following fields:
-        * **dish_name:** The name of the dish.
-        * **category:** One of [breakfast, lunch, dinner, snack].
-        * **description:** A short, appetizing description of the dish (1-2 sentences).
-    * Do NOT include any cooking instructions, detailed ingredients, nutritional information, or seasonings. Absolutely NO recipe or cooking details should be generated at this stage.
-3.  **Output Format:**
-    * Present the meal plan in a JSON format, with "breakfast", "lunch", "dinner", and "snacks" as the main keys. Each key should contain a list of three dish options (dictionaries).
-    * Ensure that all the required information is included for each dish.
-
-Example Dish Item (within the JSON structure for one of the meals, e.g., "lunch"):
-{
-  "dish_name": "Grilled Chicken Salad",
-  "category": "lunch",
-  "description": "A fresh salad with grilled chicken breast, crisp greens, and a light vinaigrette."
-}
-Ensure that the generated meal plan includes ONLY the above details for each dish.
-''';
-    return await _callGenerativeModelForJson(systemInstructionText, userPrompt, modelNameOverride: specificModelNameForFullMenu);
+    // 기본 프롬프트
+    String prompt = '''
+    다음 정보를 바탕으로 하루 식단(아침, 점심, 저녁, 간식)을 생성해주세요.
+    
+    1) 사용자 권장 영양소: 
+    ${json.encode(userRecommendedNutrients)}
+    
+    2) 사용자 기피 정보: 
+    $summarizedDislikes
+    
+    3) 사용자 선호 정보: 
+    $summarizedPreferences
+    ''';
+    
+    // 재생성 모드일 경우 추가 정보
+    if (previousMenu != null && verificationFeedback != null) {
+      prompt += '''
+      
+    4) 이전에 생성된 메뉴:
+    ${json.encode(previousMenu)}
+    
+    5) 검증 피드백 (재생성이 필요한 항목):
+    ${json.encode(verificationFeedback)}
+      
+    이전 메뉴에서 검증 피드백에 포함된 항목만 새로운 메뉴로 대체하고, 나머지는 그대로 유지하세요.
+    ''';
+    }
+    
+    // 공통 출력 형식 지시
+    prompt += '''
+    
+    식단은 다음과 같은 방식으로 생성해주세요:
+    - 각 식사에 3-4개의 음식 추천
+    - 건강에 좋고 균형 잡힌 식단
+    - 계절 식재료와 한국 음식 문화 고려
+    - 가능한 한국어 메뉴명 사용
+    
+    다음 JSON 형식으로 응답해주세요 (dish_name과 description은 한국어로 작성):
+    {
+      "breakfast": [
+        {
+          "dish_name": "음식명",
+          "category": "breakfast",
+          "description": "간단한 설명 (재료, 영양가, 조리법 간략히)",
+          "ingredients": ["주요 재료1", "주요 재료2", ...],
+          "approximate_nutrients": {"칼로리": "XXX kcal", "단백질": "XX g", "탄수화물": "XX g", "지방": "XX g"},
+          "cooking_time": "XX분",
+          "difficulty": "상/중/하"
+        },
+        ...
+      ],
+      "lunch": [
+        ... 동일한 구조
+      ],
+      "dinner": [
+        ... 동일한 구조
+      ],
+      "snacks": [
+        ... 동일한 구조
+      ]
+    }
+    ''';
+    
+    try {
+      // 타임아웃 적용된 API 호출 (최대 3회 재시도)
+      Map<String, dynamic>? result;
+      final effectiveTimeout = timeout ?? _defaultTimeout;
+      int attempts = 0;
+      final maxAttempts = 3;
+      
+      while (attempts < maxAttempts && result == null) {
+        attempts++;
+        print("🔄 메뉴 생성 시도 #$attempts");
+        
+        result = await _callGenerativeModelWithTimeout(
+          systemInstruction, 
+          prompt,
+          timeout: Duration(seconds: effectiveTimeout.inSeconds + (attempts * 5)) // 재시도마다 타임아웃 증가
+        );
+        
+        // 결과가 없으면 짧은 대기 후 재시도
+        if (result == null && attempts < maxAttempts) {
+          print("⏱️ ${attempts}번째 시도 실패, ${1000 * attempts}ms 후 재시도...");
+          await Future.delayed(Duration(milliseconds: 1000 * attempts));
+        }
+      }
+      
+      if (result != null) {
+        // 성공적으로 생성된 메뉴 캐싱 (재생성 모드가 아닌 경우만)
+        if (previousMenu == null && verificationFeedback == null) {
+          await _saveMenuToCache(cacheKey, result);
+        }
+        
+        final endTime = DateTime.now();
+        final elapsedTime = endTime.difference(startTime);
+        print("✅ 메뉴 생성 완료 (소요시간: ${elapsedTime.inSeconds}초, 시도 횟수: $attempts)");
+        
+        return result;
+      } else {
+        print("❌ 메뉴 생성 실패 (최대 시도 횟수 초과: $maxAttempts)");
+        return _createFallbackMenuResponse();
+      }
+    } catch (e) {
+      print("❌ 메뉴 생성 중 오류: $e");
+      return _createFallbackMenuResponse();
+    }
   }
 
   // *** 새로운 메소드: 단일 음식명에 대한 상세 레시피 생성 ***

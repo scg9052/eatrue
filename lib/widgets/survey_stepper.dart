@@ -21,6 +21,7 @@ class SurveyStepper extends StatelessWidget {
     final theme = Theme.of(context);
     final screenSize = MediaQuery.of(context).size;
     final isSmallScreen = screenSize.height < 700;
+    final isDarkMode = theme.brightness == Brightness.dark;
     
     return SizedBox(
       width: double.infinity,
@@ -59,6 +60,7 @@ class SurveyStepper extends StatelessWidget {
                           icon: step.icon,
                           title: step.title,
                           theme: theme,
+                          isDarkMode: isDarkMode,
                         ),
                       ),
                     );
@@ -78,7 +80,7 @@ class SurveyStepper extends StatelessWidget {
                             // 배경 라인
                             Container(
                               height: 1, // 두께 줄임
-                              color: Colors.grey[300],
+                              color: isDarkMode ? Colors.grey[700] : Colors.grey[300],
                             ),
                             // 활성화된 라인 (조건부 표시)
                             if (isLeftCompleted && isRightActive)
@@ -138,6 +140,7 @@ class _StepIndicator extends StatelessWidget {
   final IconData icon;
   final String title;
   final ThemeData theme;
+  final bool isDarkMode;
 
   const _StepIndicator({
     Key? key,
@@ -148,6 +151,7 @@ class _StepIndicator extends StatelessWidget {
     required this.icon,
     required this.title,
     required this.theme,
+    required this.isDarkMode,
   }) : super(key: key);
 
   @override
@@ -178,7 +182,7 @@ class _StepIndicator extends StatelessWidget {
                       ? theme.colorScheme.primary
                       : isCompleted 
                           ? theme.colorScheme.primary.withOpacity(0.7) 
-                          : Colors.grey[300],
+                          : isDarkMode ? Colors.grey[700] : Colors.grey[300],
                   shape: BoxShape.circle,
                   boxShadow: isActive ? [
                     BoxShadow(
@@ -197,7 +201,7 @@ class _StepIndicator extends StatelessWidget {
                         )
                       : Icon(
                           icon, // 숫자 대신 아이콘 사용
-                          color: isActive ? Colors.white : Colors.grey[700],
+                          color: isActive ? Colors.white : isDarkMode ? Colors.grey[400] : Colors.grey[700],
                           size: isSmallScreen ? 10 : 12, // 아이콘 크기 더 줄임
                         ),
                 ),

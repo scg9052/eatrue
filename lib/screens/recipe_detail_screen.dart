@@ -49,11 +49,24 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
             if (widget.recipe.costInformation != null && widget.recipe.costInformation!.isNotEmpty)
               Padding(padding: const EdgeInsets.only(top: 8.0), child: Text("예상 비용: ${widget.recipe.costInformation}", style: textTheme.titleMedium?.copyWith(color: Colors.grey[700]))),
             SizedBox(height: 16),
-            Card(elevation: 2, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), child: Padding(padding: const EdgeInsets.symmetric(vertical: 16.0, horizontal: 8.0), child: Row(mainAxisAlignment: MainAxisAlignment.spaceAround, children: [
-              if (widget.recipe.cookingTimeMinutes != null && widget.recipe.cookingTimeMinutes! > 0) _buildInfoColumn(Icons.timer_outlined, '조리 시간', '${widget.recipe.cookingTimeMinutes}분', context),
-              if (widget.recipe.difficulty != null && widget.recipe.difficulty!.isNotEmpty) _buildInfoColumn(Icons.leaderboard_outlined, '난이도', widget.recipe.difficulty!, context),
-              _buildInfoColumn(Icons.star_outline, '현재 평점', _currentRating > 0 ?'${_currentRating.toStringAsFixed(1)} / 5.0' : '평가없음', context),
-            ].where((w) => w is Widget).toList()))),
+            Card(
+              elevation: 2,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 16.0, horizontal: 8.0),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  children: [
+                    if (widget.recipe.cookingTimeMinutes != null && widget.recipe.cookingTimeMinutes! > 0) 
+                      _buildInfoColumn(Icons.timer_outlined, '조리 시간', '${widget.recipe.cookingTimeMinutes}분', context),
+                    if (widget.recipe.difficulty != null && widget.recipe.difficulty!.isNotEmpty) 
+                      _buildInfoColumn(Icons.leaderboard_outlined, '난이도', widget.recipe.difficulty!, context),
+                    _buildInfoColumn(Icons.star_outline, '현재 평점', _currentRating > 0 ?
+                      '${_currentRating.toStringAsFixed(1)} / 5.0' : '평가없음', context),
+                  ],
+                ),
+              ),
+            ),
             SizedBox(height: 24),
             if (widget.recipe.nutritionalInformation != null && widget.recipe.nutritionalInformation!.isNotEmpty) ...[
               _buildSectionTitle('영양 정보', Icons.monitor_heart_outlined, context),

@@ -4,7 +4,7 @@ class Meal {
   final String id;
   final String name;
   final String description;
-  final String? calories;
+  final String calories;
   final DateTime date;
   final String category;
   final Map<String, dynamic>? recipeJson;
@@ -13,7 +13,7 @@ class Meal {
     required this.id,
     required this.name,
     required this.description,
-    required this.calories,
+    this.calories = '',
     required this.date,
     required this.category,
     this.recipeJson,
@@ -36,7 +36,7 @@ class Meal {
       id: json['id'] as String,
       name: json['name'] as String,
       description: json['description'] as String,
-      calories: json['calories'] as String?,
+      calories: json['calories'] as String? ?? '',
       date: DateTime.parse(json['date'] as String),
       category: json['category'] as String? ?? '',
       recipeJson: json['recipeJson'] as Map<String, dynamic>?,
