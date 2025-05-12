@@ -6,6 +6,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/user_data.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:cloud_functions/cloud_functions.dart';
+import '../services/food_analysis_service.dart'; // 음식 분석 서비스 추가
 
 class SurveyDataProvider with ChangeNotifier {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -173,12 +174,32 @@ class SurveyDataProvider with ChangeNotifier {
   }
 
   Future<void> completeSurvey() async {
-    // ... (이전과 동일) ...
     final User? user = _firebaseAuth.currentUser;
     if (user == null) {
       print("익명 사용자가 없어 설문 데이터를 저장할 수 없습니다.");
       return;
     }
+    
+    // 음식 선호도 분석 수행
+    try {
+      final foodAnalysisService = FoodAnalysisService();
+      
+      print("선호/기피 식품 분석 시작...");
+      // 선호/기피 식품을 분석하여 식재료, 양념, 조리 방식으로 분해
+      _userData = await foodAnalysisService.analyzeUserFoodPreferences(_userData);
+      print("선호/기피 식품 분석 완료");
+      
+      print("선호 식재료: ${_userData.preferredIngredients}");
+      print("선호 양념: ${_userData.preferredSeasonings}");
+      print("선호 조리 방식: ${_userData.preferredCookingStyles}");
+      print("기피 식재료: ${_userData.dislikedIngredients}");
+      print("기피 양념: ${_userData.dislikedSeasonings}");
+      print("기피 조리 방식: ${_userData.dislikedCookingStyles}");
+    } catch (e) {
+      print('음식 선호도 분석 중 오류 발생: $e');
+      // 분석 실패 시 기본값(빈 배열)로 진행
+    }
+    
     _isSurveyCompleted = true;
     Map<String, dynamic> dataToSave = _userData.toJson();
     dataToSave['isSurveyCompleted'] = _isSurveyCompleted;
@@ -249,6 +270,25 @@ class SurveyDataProvider with ChangeNotifier {
   void updatePreferredCookingMethods(List<String> methods) { _userData.preferredCookingMethods = methods; notifyListeners(); }
   void updateAvailableCookingTools(List<String> tools) { _userData.availableCookingTools = tools; notifyListeners(); }
   void updatePreferredCookingTime(int? time) { _userData.preferredCookingTime = time; notifyListeners(); }
+  
+  // Firestore에 사용자 데이터 저장
+  Future<void> saveUserDataToFirestore() async {
+    final User? user = _firebaseAuth.currentUser;
+    if (user == null) {
+      print("사용자가 없어 설문 데이터를 저장할 수 없습니다.");
+      return;
+    }
+    
+    try {
+      Map<String, dynamic> dataToSave = _userData.toJson();
+      dataToSave['isSurveyCompleted'] = _isSurveyCompleted;
+      
+      await _firestore.collection('userSurveys').doc(user.uid).set(dataToSave);
+      print('설문 데이터가 Firestore에 저장되었습니다. (UID: ${user.uid})');
+    } catch (e) {
+      print('Firestore 저장 중 오류 발생: $e');
+    }
+  }
 }
 
 // UID를 로컬에 저장

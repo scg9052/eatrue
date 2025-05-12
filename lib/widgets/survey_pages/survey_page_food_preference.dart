@@ -41,6 +41,18 @@ class _SurveyPageFoodPreferenceState extends State<SurveyPageFoodPreference> {
   // List<String> _allDislikedCookingMethods = ['튀김', '볶음', '기타 직접 입력']; // 예시, 필요시 확장
   // List<String> _selectedDislikedCookingMethods = []; // 필요시 추가
 
+  // 식사 목적 옵션
+  final List<String> _commonPurposes = [
+    '건강 관리',
+    '체중 감량',
+    '근육 증가',
+    '영양 균형',
+    '에너지 향상',
+    '식이 제한 관리',
+    '맛있는 식사',
+    '경제적인 식사'
+  ];
+
   @override
   void initState() {
     super.initState();
@@ -69,11 +81,19 @@ class _SurveyPageFoodPreferenceState extends State<SurveyPageFoodPreference> {
   }
 
   InputDecoration _inputDecoration(String label, {String? hint, IconData? icon, Widget? suffixIcon, bool isRequired = false}) {
+    final theme = Theme.of(context);
+    final screenSize = MediaQuery.of(context).size;
+    final isSmallScreen = screenSize.height < 700;
+    
     return InputDecoration(
       label: RichText(
         text: TextSpan(
           text: label,
-          style: TextStyle(color: Colors.grey[700], fontSize: 16, fontFamily: 'NotoSansKR'),
+          style: TextStyle(
+            color: theme.textTheme.bodyMedium?.color, 
+            fontSize: isSmallScreen ? 14 : 16,
+            fontFamily: 'NotoSansKR'
+          ),
           children: <TextSpan>[
             if (isRequired)
               TextSpan(text: ' *', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
@@ -81,13 +101,28 @@ class _SurveyPageFoodPreferenceState extends State<SurveyPageFoodPreference> {
         ),
       ),
       hintText: hint,
-      prefixIcon: icon != null ? Icon(icon, color: Theme.of(context).primaryColor) : null,
+      hintStyle: TextStyle(fontSize: isSmallScreen ? 13 : 14),
+      prefixIcon: icon != null ? Icon(icon, color: theme.colorScheme.primary, size: isSmallScreen ? 20 : 24) : null,
       suffixIcon: suffixIcon,
-      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10.0), borderSide: BorderSide(color: Colors.grey[400]!)),
-      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10.0), borderSide: BorderSide(color: Colors.grey[400]!)),
-      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10.0), borderSide: BorderSide(color: Theme.of(context).primaryColor, width: 2.0)),
-      filled: true, fillColor: Colors.white,
-      contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12.0),
+        borderSide: BorderSide(color: theme.dividerColor)
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12.0),
+        borderSide: BorderSide(color: theme.dividerColor)
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12.0),
+        borderSide: BorderSide(color: theme.colorScheme.primary, width: 2.0)
+      ),
+      filled: true,
+      fillColor: theme.inputDecorationTheme.fillColor,
+      contentPadding: EdgeInsets.symmetric(
+        horizontal: isSmallScreen ? 12 : 16,
+        vertical: isSmallScreen ? 10 : 14
+      ),
+      isDense: isSmallScreen,
     );
   }
 
@@ -107,38 +142,81 @@ class _SurveyPageFoodPreferenceState extends State<SurveyPageFoodPreference> {
     );
   }
 
+  Widget _buildSectionLabel(String labelText, {bool isRequired = false}) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10.0, top: 16.0),
+      child: RichText(
+        text: TextSpan(
+          style: TextStyle(
+            fontSize: 17, 
+            fontWeight: FontWeight.w600, 
+            color: theme.colorScheme.primary,
+            fontFamily: 'NotoSansKR'
+          ),
+          children: [
+            TextSpan(text: labelText),
+            if (isRequired)
+              TextSpan(text: ' *', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildChipInputList({
-    required String fieldLabel, required String inputLabel, required TextEditingController controller,
-    required List<String> itemList, required Function(String) onAdd, required Function(String) onRemove,
-    IconData? listIcon, String? hintText, Color chipBackgroundColor = const Color(0xFFE0F2F1),
-    Color chipLabelColor = const Color(0xFF00796B), bool isRequired = false,
+    required String fieldLabel, 
+    required String inputLabel, 
+    required TextEditingController controller,
+    required List<String> itemList, 
+    required Function(String) onAdd, 
+    required Function(String) onRemove,
+    IconData? listIcon, 
+    String? hintText, 
+    Color? chipColor,
+    bool isRequired = false,
   }) {
+    final theme = Theme.of(context);
+    final accentColor = chipColor ?? theme.colorScheme.secondary;
+    
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        RichText(
-          text: TextSpan(
-            style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: Colors.black87, fontFamily: 'NotoSansKR'),
-            children: [
-              TextSpan(text: fieldLabel),
-              if (isRequired) TextSpan(text: ' *', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
-            ],
-          ),
-        ),
-        SizedBox(height: 10),
+        _buildSectionLabel(fieldLabel, isRequired: isRequired),
         Container(
-          padding: itemList.isNotEmpty ? EdgeInsets.all(10) : EdgeInsets.zero,
+          padding: itemList.isNotEmpty ? EdgeInsets.all(12) : EdgeInsets.zero,
           decoration: itemList.isNotEmpty ? BoxDecoration(
-              color: Colors.grey[100], borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.grey[300]!)
+            color: theme.inputDecorationTheme.fillColor,
+            borderRadius: BorderRadius.circular(12), 
+            border: Border.all(color: theme.dividerColor)
           ) : null,
           child: Wrap(
-            spacing: 8.0, runSpacing: 6.0,
+            spacing: 8.0, 
+            runSpacing: 8.0,
             children: itemList.map((item) => Chip(
-              avatar: listIcon != null ? Icon(listIcon, size: 18, color: chipLabelColor) : null,
-              label: Text(item, style: TextStyle(color: chipLabelColor)),
-              onDeleted: () { setState(() { onRemove(item); _updateParent(); }); },
-              deleteIcon: Icon(Icons.close, size: 18), deleteIconColor: Colors.red[400],
-              backgroundColor: chipBackgroundColor, padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              avatar: listIcon != null ? Icon(listIcon, size: 18, color: accentColor) : null,
+              label: Text(
+                item, 
+                style: TextStyle(
+                  color: accentColor,
+                  fontWeight: FontWeight.w500
+                )
+              ),
+              onDeleted: () { 
+                setState(() { 
+                  onRemove(item); 
+                  _updateParent(); 
+                }); 
+              },
+              deleteIcon: Icon(Icons.close, size: 18), 
+              deleteIconColor: Colors.red[400],
+              backgroundColor: accentColor.withOpacity(0.1), 
+              padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+                side: BorderSide(color: accentColor.withOpacity(0.3), width: 1)
+              ),
             )).toList(),
           ),
         ),
@@ -149,9 +227,19 @@ class _SurveyPageFoodPreferenceState extends State<SurveyPageFoodPreference> {
             Expanded(
               child: TextField(
                 controller: controller,
-                decoration: _inputDecoration(inputLabel, hint: hintText ?? '$inputLabel 입력 후 \'추가\' 또는 Enter', icon: Icons.edit_note),
+                decoration: _inputDecoration(
+                  inputLabel, 
+                  hint: hintText ?? '$inputLabel 입력 후 \'추가\' 또는 Enter', 
+                  icon: Icons.edit_note
+                ),
                 onSubmitted: (value) {
-                  if (value.trim().isNotEmpty) { setState(() { onAdd(value.trim()); controller.clear(); _updateParent(); }); }
+                  if (value.trim().isNotEmpty) { 
+                    setState(() { 
+                      onAdd(value.trim()); 
+                      controller.clear(); 
+                      _updateParent(); 
+                    }); 
+                  }
                 },
               ),
             ),
@@ -159,157 +247,462 @@ class _SurveyPageFoodPreferenceState extends State<SurveyPageFoodPreference> {
             ElevatedButton(
               onPressed: () {
                 final value = controller.text.trim();
-                if (value.isNotEmpty) { setState(() { onAdd(value); controller.clear(); _updateParent(); }); }
+                if (value.isNotEmpty) { 
+                  setState(() { 
+                    onAdd(value); 
+                    controller.clear(); 
+                    _updateParent(); 
+                  }); 
+                }
               },
               child: Icon(Icons.add, size: 24),
-              style: ElevatedButton.styleFrom(minimumSize: Size(60, 52), padding: EdgeInsets.zero, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: accentColor,
+                minimumSize: Size(60, 52), 
+                padding: EdgeInsets.zero, 
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12)
+                ),
+                elevation: 0,
+              ),
             ),
           ],
         ),
-        SizedBox(height: 24),
       ],
     );
   }
 
-  Widget _buildCookingMethodSelector({required String fieldLabel, required List<String> allMethods, required List<String> selectedMethods, required Function(String, bool) onSelected, bool isRequired = false}) {
+  Widget _buildFilterChip(String label, bool isSelected, Function() onTap, {Color? accentColor}) {
+    final theme = Theme.of(context);
+    final color = accentColor ?? theme.colorScheme.primary;
+    
+    return FilterChip(
+      label: Text(
+        label,
+        style: TextStyle(
+          color: isSelected ? Colors.white : theme.textTheme.bodyMedium?.color,
+          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+          fontSize: 13,
+        ),
+      ),
+      selected: isSelected,
+      onSelected: (selected) => onTap(),
+      backgroundColor: theme.cardColor,
+      selectedColor: color,
+      checkmarkColor: Colors.white,
+      padding: EdgeInsets.symmetric(horizontal: 2.0, vertical: 0),
+      elevation: isSelected ? 2 : 0,
+      shadowColor: isSelected ? color.withOpacity(0.3) : Colors.transparent,
+      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20.0),
+        side: BorderSide(
+          color: isSelected ? color : theme.dividerColor,
+          width: 1.0,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCookingMethodSelector() {
+    final theme = Theme.of(context);
+    
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        RichText(
-          text: TextSpan(
-            style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: Colors.black87, fontFamily: 'NotoSansKR'),
-            children: [
-              TextSpan(text: fieldLabel),
-              if (isRequired) TextSpan(text: ' *', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
-            ],
+        _buildSectionLabel('선호하는 조리 방법', isRequired: true),
+        Container(
+          width: double.infinity,
+          padding: EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: theme.inputDecorationTheme.fillColor,
+            borderRadius: BorderRadius.circular(12.0),
+            border: Border.all(color: theme.dividerColor),
+          ),
+          child: Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: _allCookingMethods.map((method) => _buildFilterChip(
+              method,
+              _selectedCookingMethods.contains(method),
+              () {
+                setState(() {
+                  if (_selectedCookingMethods.contains(method)) {
+                    _selectedCookingMethods.remove(method);
+                  } else {
+                    // '상관없음' 선택 시 다른 모든 선택 해제
+                    if (method == '상관없음') {
+                      _selectedCookingMethods.clear();
+                    } else {
+                      // 다른 방법 선택 시 '상관없음' 해제
+                      _selectedCookingMethods.remove('상관없음');
+                    }
+                    _selectedCookingMethods.add(method);
+                  }
+                  _updateParent();
+                });
+              },
+              accentColor: Color(0xFF26A69A), // 청록색 계열
+            )).toList(),
           ),
         ),
-        SizedBox(height: 10),
-        Wrap(
-          spacing: 10.0, runSpacing: 8.0,
-          children: allMethods.map((method) {
-            final isSelected = selectedMethods.contains(method);
-            return ChoiceChip(
-              label: Text(method, style: TextStyle(color: isSelected ? Colors.white : Colors.black87, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal)),
-              selected: isSelected,
-              onSelected: (selected) {
-                setState(() { onSelected(method, selected); }); // 내부 로직은 onSelected 콜백으로 위임
-                _updateParent();
-              },
-              selectedColor: Theme.of(context).primaryColor,
-              backgroundColor: Colors.grey[200],
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20), side: BorderSide(color: isSelected ? Theme.of(context).primaryColorDark : Colors.grey[300]!)),
-              padding: EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-            );
-          }).toList(),
-        ),
-        SizedBox(height: 24),
       ],
     );
   }
 
-  Widget _buildRequiredLabel(String labelText) {
-    return RichText(
-      text: TextSpan(
-        style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: Colors.black87, fontFamily: 'NotoSansKR'),
-        children: [
-          TextSpan(text: labelText),
-          TextSpan(text: ' *', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
-        ],
-      ),
+  Widget _buildPurposeSelector() {
+    final theme = Theme.of(context);
+    
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildSectionLabel('식사 목적', isRequired: true),
+        Container(
+          width: double.infinity,
+          padding: EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: theme.inputDecorationTheme.fillColor,
+            borderRadius: BorderRadius.circular(12.0),
+            border: Border.all(color: theme.dividerColor),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: _commonPurposes.map((purpose) => _buildFilterChip(
+                  purpose,
+                  _mealPurposes.contains(purpose),
+                  () {
+                    setState(() {
+                      if (_mealPurposes.contains(purpose)) {
+                        _mealPurposes.remove(purpose);
+                      } else {
+                        _mealPurposes.add(purpose);
+                      }
+                      _updateParent();
+                    });
+                  },
+                  accentColor: Color(0xFF7986CB), // 인디고 계열
+                )).toList(),
+              ),
+              SizedBox(height: 16),
+              Text(
+                '기타 목적',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                  color: theme.textTheme.bodyMedium?.color,
+                ),
+              ),
+              SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _mealPurposeController,
+                      decoration: _inputDecoration(
+                        '직접 입력',
+                        hint: '기타 목적이 있다면 입력하세요',
+                        icon: Icons.add_circle_outline,
+                      ),
+                      onSubmitted: (value) {
+                        if (value.trim().isNotEmpty) {
+                          setState(() {
+                            if (!_mealPurposes.contains(value.trim())) {
+                              _mealPurposes.add(value.trim());
+                            }
+                            _mealPurposeController.clear();
+                            _updateParent();
+                          });
+                        }
+                      },
+                    ),
+                  ),
+                  SizedBox(width: 10),
+                  ElevatedButton(
+                    onPressed: () {
+                      final value = _mealPurposeController.text.trim();
+                      if (value.isNotEmpty) {
+                        setState(() {
+                          if (!_mealPurposes.contains(value)) {
+                            _mealPurposes.add(value);
+                          }
+                          _mealPurposeController.clear();
+                          _updateParent();
+                        });
+                      }
+                    },
+                    child: Icon(Icons.add, size: 24),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Color(0xFF7986CB),
+                      minimumSize: Size(60, 52),
+                      padding: EdgeInsets.zero,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      elevation: 0,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final screenSize = MediaQuery.of(context).size;
+    final isSmallScreen = screenSize.height < 700;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        SwitchListTile(
-          title: Text('채식주의(Vegan)이신가요?', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w500)),
-          value: _isVegan,
-          onChanged: (bool value) { setState(() { _isVegan = value; }); _updateParent(); },
-          secondary: Icon(Icons.eco_outlined, color: Theme.of(context).primaryColor, size: 28),
-          activeColor: Theme.of(context).primaryColor, contentPadding: EdgeInsets.symmetric(horizontal: 8),
-          tileColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        ),
-        SizedBox(height: 16),
-
-        SwitchListTile(
-          title: Text('종교적 식단 제한이 있으신가요?', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w500)),
-          subtitle: Text('(예: 할랄, 코셔 등 특정 음식 제한)', style: TextStyle(fontSize: 13)),
-          value: _isReligiousDiet,
-          onChanged: (bool value) {
-            setState(() { _isReligiousDiet = value; if (!_isReligiousDiet) _religionDetailsController.clear(); });
-            _updateParent();
-          },
-          secondary: Icon(Icons.kebab_dining_outlined, color: Theme.of(context).primaryColor, size: 28),
-          activeColor: Theme.of(context).primaryColor, contentPadding: EdgeInsets.symmetric(horizontal: 8),
-          tileColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        ),
-        if (_isReligiousDiet)
-          Padding(
-            padding: const EdgeInsets.only(top: 12.0, left: 16.0, right: 16.0, bottom: 20.0),
-            child: TextField(
-              controller: _religionDetailsController,
-              decoration: _inputDecoration('종교 또는 식단 제한 상세 정보', hint: '예: 이슬람교 (할랄)', icon: Icons.info_outline, isRequired: true),
-            ),
+        // 섹션 제목 추가
+        Container(
+          margin: EdgeInsets.only(bottom: 20),
+          padding: EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: theme.colorScheme.primary.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: theme.colorScheme.primary.withOpacity(0.3),
+              width: 1,
+            )
           ),
-        if (!_isReligiousDiet) SizedBox(height: 24),
-
-        _buildChipInputList(
-          fieldLabel: '주요 식사 목적 (다중 선택 가능)', inputLabel: '목적 입력', hintText: '예: 근성장, 다이어트 (입력 후 추가)',
-          controller: _mealPurposeController, itemList: _mealPurposes,
-          onAdd: (purpose) { if (!_mealPurposes.contains(purpose)) setState(() => _mealPurposes.add(purpose)); },
-          onRemove: (purpose) => setState(() => _mealPurposes.remove(purpose)),
-          listIcon: Icons.flag_circle_outlined, chipBackgroundColor: Colors.blue[100]!, chipLabelColor: Colors.blue[800]!,
-          isRequired: true,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '식습관 정보',
+                style: TextStyle(
+                  fontSize: isSmallScreen ? 18 : 20,
+                  fontWeight: FontWeight.bold,
+                  color: theme.colorScheme.primary,
+                ),
+              ),
+              SizedBox(height: 8),
+              Text(
+                '당신의 식습관과 선호도에 맞는 최적의 식단을 추천해 드립니다.',
+                style: TextStyle(
+                  fontSize: isSmallScreen ? 13 : 14,
+                  color: theme.colorScheme.onSurface.withOpacity(0.7),
+                ),
+              ),
+            ],
+          ),
         ),
-
-        _buildRequiredLabel("한 끼 식비 한도 (원)"),
-        SizedBox(height: 10),
-        TextField(
-          controller: _mealBudgetController,
-          decoration: _inputDecoration('식비 한도 입력', hint: '예: 10000 (숫자만)', icon: Icons.payments_outlined, suffixIcon: Text("원  ", style: TextStyle(color: Colors.grey[600])), isRequired: true),
-          keyboardType: TextInputType.number,
-          inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(7)],
-          onChanged: (_) => _updateParent(),
+        
+        // 식이 제한 섹션
+        _buildSectionLabel('식이 제한'),
+        Row(
+          children: [
+            // 비건 여부
+            Expanded(
+              child: Container(
+                padding: EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: theme.inputDecorationTheme.fillColor,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: theme.dividerColor),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.eco_outlined,
+                      color: _isVegan ? Colors.green[600] : Colors.grey[500],
+                      size: 24,
+                    ),
+                    SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '비건/채식',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w500,
+                              fontSize: 15,
+                            ),
+                          ),
+                          SizedBox(height: 4),
+                          Text(
+                            '채식 식단을 선호합니다',
+                            style: TextStyle(
+                              color: Colors.grey[600],
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Switch(
+                      value: _isVegan,
+                      onChanged: (value) {
+                        setState(() {
+                          _isVegan = value;
+                          _updateParent();
+                        });
+                      },
+                      activeColor: Colors.green[600],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            SizedBox(width: 12),
+            // 종교적 제한 여부
+            Expanded(
+              child: Container(
+                padding: EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: theme.inputDecorationTheme.fillColor,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: theme.dividerColor),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.church_outlined,
+                      color: _isReligiousDiet ? Colors.amber[700] : Colors.grey[500],
+                      size: 24,
+                    ),
+                    SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '종교적 제한',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w500,
+                              fontSize: 15,
+                            ),
+                          ),
+                          SizedBox(height: 4),
+                          Text(
+                            '종교적 이유로 제한',
+                            style: TextStyle(
+                              color: Colors.grey[600],
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Switch(
+                      value: _isReligiousDiet,
+                      onChanged: (value) {
+                        setState(() {
+                          _isReligiousDiet = value;
+                          _updateParent();
+                        });
+                      },
+                      activeColor: Colors.amber[700],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
         ),
+        
+        // 종교적 제한 상세 (조건부 표시)
+        if (_isReligiousDiet) ...[
+          SizedBox(height: 16),
+          TextField(
+            controller: _religionDetailsController,
+            decoration: _inputDecoration(
+              '종교적 제한 사항', 
+              hint: '종교적 식이 제한 사항을 설명해주세요', 
+              icon: Icons.info_outline,
+              isRequired: true,
+            ),
+            maxLines: 2,
+          ),
+        ],
+        
         SizedBox(height: 24),
-
+        
+        // 식사 목적 섹션
+        _buildPurposeSelector(),
+        
+        SizedBox(height: 24),
+        
+        // 식사 예산 섹션
+        _buildSectionLabel('식사 예산 (1인분 기준)', isRequired: true),
+        Row(
+          children: [
+            Expanded(
+              child: TextField(
+                controller: _mealBudgetController,
+                decoration: _inputDecoration(
+                  '1인분 기준 예산', 
+                  hint: '예: 10000', 
+                  icon: Icons.monetization_on_outlined,
+                  suffixIcon: Padding(
+                    padding: EdgeInsets.only(right: 12),
+                    child: Text(
+                      '원', 
+                      style: TextStyle(
+                        fontSize: 16, 
+                        color: Colors.grey[600]
+                      )
+                    ),
+                  ),
+                  isRequired: true,
+                ),
+                keyboardType: TextInputType.number,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                onChanged: (_) => _updateParent(),
+              ),
+            ),
+          ],
+        ),
+        
+        SizedBox(height: 24),
+        
+        // 조리 방법 선택
+        _buildCookingMethodSelector(),
+        
+        SizedBox(height: 24),
+        
+        // 좋아하는 음식
         _buildChipInputList(
-          fieldLabel: '선호하는 음식 또는 식재료', inputLabel: '선호 음식/식재료 입력',
-          controller: _favoriteFoodController, itemList: _favoriteFoods,
-          onAdd: (food) { if (!_favoriteFoods.contains(food)) setState(() => _favoriteFoods.add(food)); },
-          onRemove: (food) => setState(() => _favoriteFoods.remove(food)),
-          listIcon: Icons.favorite_outline, chipBackgroundColor: Colors.pink[50]!, chipLabelColor: Colors.pink[700]!,
+          fieldLabel: '좋아하는 음식',
+          inputLabel: '음식 이름 입력',
+          controller: _favoriteFoodController,
+          itemList: _favoriteFoods,
+          onAdd: (food) {
+            if (!_favoriteFoods.contains(food)) _favoriteFoods.add(food);
+          },
+          onRemove: (food) => _favoriteFoods.remove(food),
+          listIcon: Icons.favorite,
+          chipColor: Colors.red[400],
         ),
-
+        
+        SizedBox(height: 8),
+        
+        // 싫어하는 음식
         _buildChipInputList(
-          fieldLabel: '기피하는 음식 또는 식재료', inputLabel: '기피 음식/식재료 입력',
-          controller: _dislikedFoodController, itemList: _dislikedFoods,
-          onAdd: (food) { if (!_dislikedFoods.contains(food)) setState(() => _dislikedFoods.add(food)); },
-          onRemove: (food) => setState(() => _dislikedFoods.remove(food)),
-          listIcon: Icons.sentiment_very_dissatisfied_outlined, chipBackgroundColor: Colors.grey[300]!, chipLabelColor: Colors.black54,
+          fieldLabel: '싫어하는 음식',
+          inputLabel: '음식 이름 입력',
+          controller: _dislikedFoodController,
+          itemList: _dislikedFoods,
+          onAdd: (food) {
+            if (!_dislikedFoods.contains(food)) _dislikedFoods.add(food);
+          },
+          onRemove: (food) => _dislikedFoods.remove(food),
+          listIcon: Icons.not_interested,
+          chipColor: Colors.grey[700],
         ),
-
-        _buildCookingMethodSelector(
-            fieldLabel: "선호하는 조리 방식 (다중 선택 가능)",
-            allMethods: _allCookingMethods,
-            selectedMethods: _selectedCookingMethods,
-            onSelected: (method, selected) {
-              if (method == '상관없음') {
-                if (selected) { _selectedCookingMethods.clear(); _selectedCookingMethods.add(method); }
-                else { _selectedCookingMethods.remove(method); }
-              } else {
-                _selectedCookingMethods.remove('상관없음');
-                if (selected) { _selectedCookingMethods.add(method); }
-                else { _selectedCookingMethods.remove(method); }
-              }
-            },
-            isRequired: true
-        ),
-        // 여기에 비선호 조리 방식, 선호/비선호 양념 입력 UI 추가 가능
+        
+        SizedBox(height: 16),
       ],
     );
   }
@@ -318,8 +711,8 @@ class _SurveyPageFoodPreferenceState extends State<SurveyPageFoodPreference> {
   void dispose() {
     _religionDetailsController.removeListener(_onReligionDetailsChanged);
     _religionDetailsController.dispose();
-    _mealPurposeController.dispose();
     _mealBudgetController.dispose();
+    _mealPurposeController.dispose();
     _favoriteFoodController.dispose();
     _dislikedFoodController.dispose();
     // _favoriteSeasoningController.dispose();

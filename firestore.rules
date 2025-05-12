@@ -1,0 +1,28 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 로그인된 사용자에게 모든 문서 읽기/쓰기 권한 부여
+    match /{document=**} {
+      allow read, write: if request.auth != null;
+    }
+    
+    // 각 컬렉션에 대한 구체적인 규칙
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    match /meals/{mealId} {
+      allow read, write: if request.auth != null && resource.data.userId == request.auth.uid;
+      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+    }
+    
+    match /mealBase/{mealBaseId} {
+      allow read, write: if request.auth != null && resource.data.userId == request.auth.uid;
+      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+    }
+    
+    match /surveyData/{userId} {
+      allow read, write: if request.auth != null && userId == request.auth.uid;
+    }
+  }
+} 

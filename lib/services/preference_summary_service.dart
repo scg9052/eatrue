@@ -1,20 +1,21 @@
 // services/preference_summary_service.dart
 import 'package:firebase_vertexai/firebase_vertexai.dart';
+import '../models/user_data.dart'; // UserData 모델 임포트 추가
 // import 'dart:typed_data'; // 현재 코드에서는 직접 사용되지 않음
 
 class PreferenceSummaryService {
   final FirebaseVertexAI _vertexAI;
-  final String _modelName = 'gemini-2.0-flash-001';
+  final String _modelName = 'gemini-2.5-flash-preview-04-17';
 
   PreferenceSummaryService({FirebaseVertexAI? vertexAI})
       : _vertexAI = vertexAI ?? FirebaseVertexAI.instanceFor(location: 'us-central1');
 
   Future<String?> summarizePreferences({
-    required List<String> preferredCookingMethod,
-    required List<String> preferredIngredients,
-    required List<String> preferredSeasonings,
-    required int desiredCookingTime,
-    required double desiredFoodCost,
+    List<String> preferredCookingMethod = const [],
+    List<String> preferredIngredients = const [],
+    List<String> preferredSeasonings = const [],
+    int desiredCookingTime = 30,
+    double desiredFoodCost = 10000
   }) async {
     final generationConfig = GenerationConfig(
       maxOutputTokens: 8192,
@@ -69,6 +70,60 @@ Organize the provided information into a concise summary document suitable for g
       return response.text;
     } catch (e) {
       print("Error calling Preference Summary API: $e");
+      return null;
+    }
+  }
+  
+  /// 사용자 데이터 기반 선호도 요약 (분해된 정보 활용)
+  Future<String?> summarizeUserPreferences(UserData userData) async {
+    const systemInstructionText = '''
+당신은 영양과 요리 전문가입니다. 
+사용자의 식품 선호도 정보를 간결하게 요약하는 역할을 합니다.
+''';
+
+    final userPrompt = '''
+다음 사용자의 식품 선호도 정보를 요약해주세요:
+
+선호 정보:
+* 선호 식재료: ${userData.preferredIngredients.isEmpty ? '정보 없음' : userData.preferredIngredients.join(', ')}
+* 선호 양념: ${userData.preferredSeasonings.isEmpty ? '정보 없음' : userData.preferredSeasonings.join(', ')}
+* 선호 조리 방식: ${userData.preferredCookingStyles.isEmpty ? '정보 없음' : userData.preferredCookingStyles.join(', ')}
+* 선호 조리 방법: ${userData.preferredCookingMethods.isEmpty ? '정보 없음' : userData.preferredCookingMethods.join(', ')}
+* 기존 선호 음식: ${userData.favoriteFoods.isEmpty ? '정보 없음' : userData.favoriteFoods.join(', ')}
+* 조리 시간 선호: ${userData.preferredCookingTime ?? 30}분 이내
+* 식사 비용 선호: ${userData.mealBudget ?? 10000}원 이내
+
+요약은 위 정보를 바탕으로 사용자의 식품 선호도를 2-3문장으로 압축하여 서술해주세요.
+구체적인 식재료, 양념, 조리 방식 등을 언급하되, 중요한 정보만 간결하게 포함해주세요.
+''';
+
+    final generationConfig = GenerationConfig(
+      maxOutputTokens: 2048,
+      temperature: 0.2,
+    );
+    final safetySettings = [
+      SafetySetting(HarmCategory.hateSpeech, HarmBlockThreshold.medium, HarmBlockMethod.severity),
+      SafetySetting(HarmCategory.dangerousContent, HarmBlockThreshold.medium, HarmBlockMethod.severity),
+      SafetySetting(HarmCategory.sexuallyExplicit, HarmBlockThreshold.medium, HarmBlockMethod.severity),
+      SafetySetting(HarmCategory.harassment, HarmBlockThreshold.medium, HarmBlockMethod.severity),
+    ];
+
+    try {
+      final model = _vertexAI.generativeModel(
+        model: _modelName,
+        generationConfig: generationConfig,
+        safetySettings: safetySettings,
+        systemInstruction: Content.system(systemInstructionText),
+      );
+      final chat = model.startChat();
+      final response = await chat.sendMessage(Content.text(userPrompt));
+      
+      if (response.text != null) {
+        return response.text;
+      }
+      return null;
+    } catch (e) {
+      print('선호도 요약 중 오류: $e');
       return null;
     }
   }

@@ -1,9 +1,10 @@
 // services/dislike_summary_service.dart
 import 'package:firebase_vertexai/firebase_vertexai.dart';
+import '../models/user_data.dart'; // UserData 모델 임포트 추가
 
 class DislikeSummaryService {
   final FirebaseVertexAI _vertexAI;
-  final String _modelName = 'gemini-2.0-flash-001';
+  final String _modelName = 'gemini-2.5-flash-preview-04-17';
 
   DislikeSummaryService({FirebaseVertexAI? vertexAI})
       : _vertexAI = vertexAI ?? FirebaseVertexAI.instanceFor(location: 'us-central1');
@@ -19,12 +20,12 @@ class DislikeSummaryService {
   }
 
   Future<String?> summarizeDislikes({
-    required List<String> cookingTools,
-    required List<String> dislikedCookingMethods,
+    List<String> cookingTools = const [],
+    List<String> dislikedCookingMethods = const [],
     String? religionDetails,
-    required bool veganStatus,
-    required List<String> dislikedIngredients,
-    required List<String> dislikedSeasonings,
+    bool veganStatus = false,
+    List<String> dislikedIngredients = const [],
+    List<String> dislikedSeasonings = const [],
   }) async {
     final generationConfig = GenerationConfig(
       maxOutputTokens: 8192,
@@ -77,6 +78,61 @@ Please generate the summary now based on the provided user's information.
       return response.text;
     } catch (e) {
       print("Error calling Dislike Summary API: $e");
+      return null;
+    }
+  }
+
+  /// 사용자 데이터 기반 기피 사항 요약 (분해된 정보 활용)
+  Future<String?> summarizeUserDislikes(UserData userData) async {
+    const systemInstructionText = '''
+당신은 영양과 요리 전문가입니다. 
+사용자의 식품 기피 정보를 간결하게 요약하는 역할을 합니다.
+''';
+
+    final userPrompt = '''
+다음 사용자의 식품 기피 정보를 요약해주세요:
+
+기피 정보:
+* 기피 식재료: ${userData.dislikedIngredients.isEmpty ? '정보 없음' : userData.dislikedIngredients.join(', ')}
+* 기피 양념: ${userData.dislikedSeasonings.isEmpty ? '정보 없음' : userData.dislikedSeasonings.join(', ')}
+* 기피 조리 방식: ${userData.dislikedCookingStyles.isEmpty ? '정보 없음' : userData.dislikedCookingStyles.join(', ')}
+* 기존 기피 음식: ${userData.dislikedFoods.isEmpty ? '정보 없음' : userData.dislikedFoods.join(', ')}
+* 알레르기: ${userData.allergies.isEmpty ? '없음' : userData.allergies.join(', ')}
+* 비건 여부: ${userData.isVegan ? '예' : '아니오'}
+* 종교적 제한: ${userData.isReligious ? (userData.religionDetails ?? '있음 (상세 정보 없음)') : '없음'}
+* 가용 조리 도구: ${userData.availableCookingTools.isEmpty ? '모든 도구 사용 가능' : userData.availableCookingTools.join(', ')}
+
+요약은 위 정보를 바탕으로 사용자의 식품 기피 정보를 2-3문장으로 압축하여 서술해주세요.
+알레르기, 비건 여부, 종교적 제한, 기피 식재료와 조리 방식 등을 언급하되, 중요한 정보만 간결하게 포함해주세요.
+''';
+
+    final generationConfig = GenerationConfig(
+      maxOutputTokens: 2048,
+      temperature: 0.2,
+    );
+    final safetySettings = [
+      SafetySetting(HarmCategory.hateSpeech, HarmBlockThreshold.medium, HarmBlockMethod.severity),
+      SafetySetting(HarmCategory.dangerousContent, HarmBlockThreshold.medium, HarmBlockMethod.severity),
+      SafetySetting(HarmCategory.sexuallyExplicit, HarmBlockThreshold.medium, HarmBlockMethod.severity),
+      SafetySetting(HarmCategory.harassment, HarmBlockThreshold.medium, HarmBlockMethod.severity),
+    ];
+
+    try {
+      final model = _vertexAI.generativeModel(
+        model: _modelName,
+        generationConfig: generationConfig,
+        safetySettings: safetySettings,
+        systemInstruction: Content.system(systemInstructionText),
+      );
+      final chat = model.startChat();
+      final response = await chat.sendMessage(Content.text(userPrompt));
+      
+      if (response.text != null) {
+        return response.text;
+      }
+      return null;
+    } catch (e) {
+      print('기피 사항 요약 중 오류: $e');
       return null;
     }
   }
