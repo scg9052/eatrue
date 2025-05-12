@@ -38,8 +38,7 @@ class MyApp extends StatelessWidget {
       child: MaterialApp(
         title: 'Eatrue - 맞춤형 식단 추천',
         theme: AppTheme.getLightTheme(), // 라이트 테마 사용
-        darkTheme: AppTheme.getDarkTheme(), // 다크 테마 활성화
-        themeMode: ThemeMode.system, // 시스템 설정에 따라 테마 자동 적용
+        themeMode: ThemeMode.light, // 항상 라이트 테마 사용
         
         // 한국어 지원을 위한 로컬리제이션 위젯 설정
         localizationsDelegates: const [
