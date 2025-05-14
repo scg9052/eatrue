@@ -7,15 +7,29 @@ import '../models/user_data.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import '../services/food_analysis_service.dart'; // 음식 분석 서비스 추가
+import '../services/preference_summary_service.dart'; // 선호도 요약 서비스 추가
+import '../services/dislike_summary_service.dart'; // 기피 요약 서비스 추가
 
 class SurveyDataProvider with ChangeNotifier {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _firebaseAuth = FirebaseAuth.instance;
+  
+  // 선호도 및 기피 정보 요약 서비스
+  final PreferenceSummaryService _preferenceSummaryService = PreferenceSummaryService();
+  final DislikeSummaryService _dislikeSummaryService = DislikeSummaryService();
 
   late UserData _userData;
   bool _isSurveyCompleted = false;
   bool _isLoading = true; // 초기에는 항상 로딩 상태로 시작
   String? _currentUserId; // 현재 사용자의 UID 저장
+
+  // 선호도 및 기피 정보 요약 캐싱
+  String? _preferenceSummary;
+  String? _dislikeSummary;
+  DateTime? _lastPreferenceSummaryUpdate;
+  DateTime? _lastDislikeSummaryUpdate;
+  bool _needsPreferenceSummaryUpdate = false;
+  bool _needsDislikeSummaryUpdate = false;
 
   StreamSubscription<User?>? _authSubscription; // 인증 상태 변경 리스너 구독 관리
 
@@ -143,8 +157,6 @@ class SurveyDataProvider with ChangeNotifier {
     }
 
     // 이미 로딩 중이 아니라면 로딩 상태로 설정
-    // (이 함수는 _handleUserAuthenticated 또는 _signInAnonymouslyAndLoadData 내부에서 호출될 수 있으며,
-    // 그 함수들에서 이미 _isLoading = true로 설정했을 수 있음)
     if (!_isLoading) {
       _isLoading = true;
       notifyListeners(); // UI에 로딩 시작 알림
@@ -154,18 +166,55 @@ class SurveyDataProvider with ChangeNotifier {
     try {
       DocumentSnapshot doc = await _firestore.collection('userSurveys').doc(userId).get();
       if (doc.exists && doc.data() != null) {
-        _userData = UserData.fromJson(doc.data() as Map<String, dynamic>);
-        _isSurveyCompleted = (doc.data() as Map<String, dynamic>)['isSurveyCompleted'] as bool? ?? true;
+        final data = doc.data() as Map<String, dynamic>;
+        _userData = UserData.fromJson(data);
+        _isSurveyCompleted = data['isSurveyCompleted'] as bool? ?? true;
+        
+        // 캐시된 요약 정보 로드
+        if (data.containsKey('preferenceSummary') && data['preferenceSummary'] != null) {
+          _preferenceSummary = data['preferenceSummary'] as String;
+          _lastPreferenceSummaryUpdate = data['lastPreferenceSummaryUpdate'] != null 
+              ? (data['lastPreferenceSummaryUpdate'] as Timestamp).toDate()
+              : null;
+          
+          // 7일 이상 지난 요약 정보는 무효화
+          if (_lastPreferenceSummaryUpdate != null && 
+              DateTime.now().difference(_lastPreferenceSummaryUpdate!).inDays > 7) {
+            _needsPreferenceSummaryUpdate = true;
+          }
+        }
+        
+        if (data.containsKey('dislikeSummary') && data['dislikeSummary'] != null) {
+          _dislikeSummary = data['dislikeSummary'] as String;
+          _lastDislikeSummaryUpdate = data['lastDislikeSummaryUpdate'] != null 
+              ? (data['lastDislikeSummaryUpdate'] as Timestamp).toDate()
+              : null;
+          
+          // 7일 이상 지난 요약 정보는 무효화
+          if (_lastDislikeSummaryUpdate != null && 
+              DateTime.now().difference(_lastDislikeSummaryUpdate!).inDays > 7) {
+            _needsDislikeSummaryUpdate = true;
+          }
+        }
+        
         print("Firestore에서 설문 데이터 로드 완료 (UID: $userId). isSurveyCompleted: $_isSurveyCompleted");
       } else {
         print("Firestore에 저장된 설문 데이터 없음 (UID: $userId). 기본값 사용.");
         _userData = _getDefaultUserData();
         _isSurveyCompleted = false;
+        _preferenceSummary = null;
+        _dislikeSummary = null;
+        _needsPreferenceSummaryUpdate = true;
+        _needsDislikeSummaryUpdate = true;
       }
     } catch (e) {
       print("Firestore에서 설문 데이터 로드 중 오류 (UID: $userId): $e");
       _userData = _getDefaultUserData();
       _isSurveyCompleted = false;
+      _preferenceSummary = null;
+      _dislikeSummary = null;
+      _needsPreferenceSummaryUpdate = true;
+      _needsDislikeSummaryUpdate = true;
     } finally {
       _isLoading = false;
       print("SurveyProvider (loadSurveyDataFromFirestore): Loading finished for UID: $userId. _isLoading: $_isLoading");
@@ -197,20 +246,45 @@ class SurveyDataProvider with ChangeNotifier {
       print("기피 조리 방식: ${_userData.dislikedCookingStyles}");
     } catch (e) {
       print('음식 선호도 분석 중 오류 발생: $e');
-      // 분석 실패 시 기본값(빈 배열)로 진행
     }
     
+    // 선호 및 기피 요약 정보 생성
+    _needsPreferenceSummaryUpdate = true;
+    _needsDislikeSummaryUpdate = true;
+    await getPreferenceSummary();
+    await getDislikeSummary();
+    
+    // 설문 완료 표시 및 저장
     _isSurveyCompleted = true;
-    Map<String, dynamic> dataToSave = _userData.toJson();
-    dataToSave['isSurveyCompleted'] = _isSurveyCompleted;
-
+    
     try {
-      await _firestore.collection('userSurveys').doc(user.uid).set(dataToSave);
-      print('설문 데이터가 Firestore에 저장되었습니다. (UID: ${user.uid})');
+      // 사용자 데이터를 저장하는 Map 생성
+      final Map<String, dynamic> userData = _userData.toJson();
+      
+      // 추가 정보를 Map에 포함
+      userData['isSurveyCompleted'] = true;
+      userData['lastUpdated'] = FieldValue.serverTimestamp();
+      
+      // 요약 정보도 저장
+      if (_preferenceSummary != null) {
+        userData['preferenceSummary'] = _preferenceSummary;
+        userData['lastPreferenceSummaryUpdate'] = _lastPreferenceSummaryUpdate;
+      }
+      
+      if (_dislikeSummary != null) {
+        userData['dislikeSummary'] = _dislikeSummary;
+        userData['lastDislikeSummaryUpdate'] = _lastDislikeSummaryUpdate;
+      }
+      
+      // Firestore에 저장
+      await _firestore.collection('userSurveys').doc(user.uid).set(userData);
+      print("설문 데이터가 Firestore에 저장되었습니다. (UID: ${user.uid})");
+      
+      notifyListeners();
     } catch (e) {
-      print('Firestore 저장 중 오류 발생: $e');
+      print('설문 데이터 저장 중 오류 발생: $e');
+      throw Exception('설문 데이터 저장에 실패했습니다.');
     }
-    notifyListeners();
   }
 
   void resetSurveyForEditing() {
@@ -288,6 +362,160 @@ class SurveyDataProvider with ChangeNotifier {
     } catch (e) {
       print('Firestore 저장 중 오류 발생: $e');
     }
+  }
+
+  // 선호도 요약 정보 가져오기 (캐싱된 정보 활용)
+  Future<String?> getPreferenceSummary() async {
+    // 캐시된 정보가 있고 업데이트가 필요없으면 반환
+    if (_preferenceSummary != null && !_needsPreferenceSummaryUpdate) {
+      print("캐시된 선호도 요약 정보 사용");
+      return _preferenceSummary;
+    }
+    
+    print("선호도 요약 정보 생성 중...");
+    try {
+      // 새로운 요약 정보 생성
+      _preferenceSummary = await _preferenceSummaryService.summarizeUserPreferences(_userData);
+      
+      if (_preferenceSummary == null) {
+        _preferenceSummary = await _preferenceSummaryService.summarizePreferences(
+          preferredCookingMethod: _userData.preferredCookingMethods,
+          preferredIngredients: _userData.preferredIngredients.isEmpty ? _userData.favoriteFoods : _userData.preferredIngredients,
+          preferredSeasonings: _userData.preferredSeasonings,
+          desiredCookingTime: _userData.preferredCookingTime ?? 30,
+          desiredFoodCost: _userData.mealBudget ?? 10000,
+          mealPurpose: _userData.mealPurpose,
+        );
+      }
+      
+      _lastPreferenceSummaryUpdate = DateTime.now();
+      _needsPreferenceSummaryUpdate = false;
+      
+      // 요약 정보 저장 (선택적)
+      if (_currentUserId != null) {
+        await _firestore.collection('userSurveys').doc(_currentUserId).update({
+          'preferenceSummary': _preferenceSummary,
+          'lastPreferenceSummaryUpdate': _lastPreferenceSummaryUpdate,
+        }).catchError((e) => print("선호도 요약 정보 저장 실패: $e"));
+      }
+      
+      print("선호도 요약 정보 생성 완료");
+      return _preferenceSummary;
+    } catch (e) {
+      print("선호도 요약 정보 생성 중 오류: $e");
+      return null;
+    }
+  }
+  
+  // 기피 요약 정보 가져오기 (캐싱된 정보 활용)
+  Future<String?> getDislikeSummary() async {
+    // 캐시된 정보가 있고 업데이트가 필요없으면 반환
+    if (_dislikeSummary != null && !_needsDislikeSummaryUpdate) {
+      print("캐시된 기피 요약 정보 사용");
+      return _dislikeSummary;
+    }
+    
+    print("기피 요약 정보 생성 중...");
+    try {
+      // 새로운 요약 정보 생성
+      _dislikeSummary = await _dislikeSummaryService.summarizeUserDislikes(_userData);
+      
+      if (_dislikeSummary == null) {
+        _dislikeSummary = await _dislikeSummaryService.summarizeDislikes(
+          cookingTools: _userData.availableCookingTools,
+          dislikedCookingMethods: _userData.dislikedCookingStyles,
+          religionDetails: _userData.religionDetails,
+          veganStatus: _userData.isVegan,
+          dislikedIngredients: _userData.dislikedIngredients.isEmpty ? _userData.dislikedFoods : _userData.dislikedIngredients,
+          dislikedSeasonings: _userData.dislikedSeasonings,
+        );
+      }
+      
+      _lastDislikeSummaryUpdate = DateTime.now();
+      _needsDislikeSummaryUpdate = false;
+      
+      // 요약 정보 저장 (선택적)
+      if (_currentUserId != null) {
+        await _firestore.collection('userSurveys').doc(_currentUserId).update({
+          'dislikeSummary': _dislikeSummary,
+          'lastDislikeSummaryUpdate': _lastDislikeSummaryUpdate,
+        }).catchError((e) => print("기피 요약 정보 저장 실패: $e"));
+      }
+      
+      print("기피 요약 정보 생성 완료");
+      return _dislikeSummary;
+    } catch (e) {
+      print("기피 요약 정보 생성 중 오류: $e");
+      return null;
+    }
+  }
+
+  // 선호도나 기피 정보가 변경되었을 때 호출
+  void updatePreferenceState({bool preferenceChanged = false, bool dislikeChanged = false}) {
+    if (preferenceChanged) {
+      _needsPreferenceSummaryUpdate = true;
+      _preferenceSummary = null; // 캐시 무효화
+    }
+    
+    if (dislikeChanged) {
+      _needsDislikeSummaryUpdate = true;
+      _dislikeSummary = null; // 캐시 무효화
+    }
+    
+    if (preferenceChanged || dislikeChanged) {
+      notifyListeners();
+    }
+  }
+
+  // 선호 식품 추가 시 요약 정보 업데이트 플래그 설정
+  void addFavoriteFood(String food) {
+    if (!_userData.favoriteFoods.contains(food)) {
+      _userData.favoriteFoods.add(food);
+      updatePreferenceState(preferenceChanged: true);
+    }
+  }
+  
+  // 선호 식품 제거 시 요약 정보 업데이트 플래그 설정
+  void removeFavoriteFood(String food) {
+    if (_userData.favoriteFoods.remove(food)) {
+      updatePreferenceState(preferenceChanged: true);
+    }
+  }
+  
+  // 기피 식품 추가 시 요약 정보 업데이트 플래그 설정
+  void addDislikedFood(String food) {
+    if (!_userData.dislikedFoods.contains(food)) {
+      _userData.dislikedFoods.add(food);
+      updatePreferenceState(dislikeChanged: true);
+    }
+  }
+  
+  // 기피 식품 제거 시 요약 정보 업데이트 플래그 설정
+  void removeDislikedFood(String food) {
+    if (_userData.dislikedFoods.remove(food)) {
+      updatePreferenceState(dislikeChanged: true);
+    }
+  }
+
+  // 설문 완료 상태 전환 (완료 <-> 미완료)
+  Future<void> toggleSurveyCompletionStatus(bool isCompleted) async {
+    _isSurveyCompleted = isCompleted;
+    
+    // 파이어스토어에 업데이트
+    final User? user = _firebaseAuth.currentUser;
+    if (user != null) {
+      try {
+        await _firestore.collection('userSurveys').doc(user.uid).update({
+          'isSurveyCompleted': isCompleted,
+          'lastUpdated': FieldValue.serverTimestamp(),
+        });
+        print('설문 완료 상태가 업데이트되었습니다: $isCompleted (UID: ${user.uid})');
+      } catch (e) {
+        print('설문 완료 상태 업데이트 중 오류 발생: $e');
+      }
+    }
+    
+    notifyListeners();
   }
 }
 

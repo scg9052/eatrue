@@ -7,6 +7,7 @@ import '../widgets/app_bar_widget.dart';
 import '../providers/survey_data_provider.dart';
 import '../providers/meal_provider.dart';
 import '../services/food_analysis_service.dart';
+import '../widgets/progress_loading.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({Key? key}) : super(key: key);
@@ -90,6 +91,7 @@ class MealGenerationScreen extends StatelessWidget {
     final surveyDataProvider = Provider.of<SurveyDataProvider>(context);
     final isLoading = mealProvider.isLoading;
     final progressMessage = mealProvider.progressMessage;
+    final progressPercentage = mealProvider.progressPercentage;
     final errorMessage = mealProvider.errorMessage;
     
     return Scaffold(
@@ -98,15 +100,9 @@ class MealGenerationScreen extends StatelessWidget {
         subtitle: '개인 맞춤 식단을 생성합니다',
       ),
       body: isLoading 
-          ? Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  CircularProgressIndicator(),
-                  SizedBox(height: 20),
-                  Text(progressMessage ?? '로딩 중...'),
-                ],
-              ),
+          ? FullScreenProgressLoading(
+              message: progressMessage ?? '로딩 중...',
+              progress: progressPercentage,
             )
           : Padding(
               padding: const EdgeInsets.all(16.0),
@@ -135,48 +131,93 @@ class MealGenerationScreen extends StatelessWidget {
                         ),
                       ),
                     ),
-                  Image.asset(
-                    'assets/images/meal_generation.png',
-                    height: 200,
-                    fit: BoxFit.contain,
-                  ),
-                  SizedBox(height: 24),
-                  Text(
-                    '맞춤형 식단 생성',
-                    style: Theme.of(context).textTheme.headlineMedium,
-                  ),
-                  SizedBox(height: 16),
-                  Text(
-                    'AI가 당신의 신체 정보, 선호도, 활동량 등을 고려하여 최적의 식단을 구성합니다.',
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.bodyMedium,
-                  ),
-                  SizedBox(height: 32),
-                  ElevatedButton.icon(
-                    onPressed: () {
-                      // 식단 생성 후 홈 화면 탭으로 이동하도록 수정
-                      mealProvider.orchestrateMenuGeneration();
-                      
-                      // 생성 시작 메시지 표시
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text('맞춤 식단을 생성 중입니다. 잠시 기다려주세요.'),
-                          duration: Duration(seconds: 2),
+                  Expanded(
+                    child: Center(
+                      child: SingleChildScrollView(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: [
+                            Image(
+                              image: AssetImage('assets/images/meal_generation.png'),
+                              height: 200,
+                              fit: BoxFit.contain,
+                              errorBuilder: (context, error, stackTrace) {
+                                // 이미지 로드 실패 시 대체 UI
+                                return Container(
+                                  height: 200,
+                                  width: 200,
+                                  decoration: BoxDecoration(
+                                    color: Theme.of(context).colorScheme.primaryContainer.withOpacity(0.3),
+                                    borderRadius: BorderRadius.circular(16),
+                                  ),
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(
+                                        Icons.restaurant_menu,
+                                        size: 80,
+                                        color: Theme.of(context).colorScheme.primary,
+                                      ),
+                                      SizedBox(height: 16),
+                                      Text(
+                                        '맞춤형 식단 생성',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          color: Theme.of(context).colorScheme.primary,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              },
+                            ),
+                            SizedBox(height: 24),
+                            Text(
+                              '맞춤형 식단 생성',
+                              style: Theme.of(context).textTheme.headlineMedium,
+                              textAlign: TextAlign.center,
+                            ),
+                            SizedBox(height: 16),
+                            Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                              child: Text(
+                                'AI가 당신의 신체 정보, 선호도, 활동량 등을 고려하여 최적의 식단을 구성합니다.',
+                                textAlign: TextAlign.center,
+                                style: Theme.of(context).textTheme.bodyMedium,
+                              ),
+                            ),
+                            SizedBox(height: 32),
+                            ElevatedButton.icon(
+                              onPressed: () {
+                                // 식단 생성 후 홈 화면 탭으로 이동하도록 수정
+                                mealProvider.orchestrateMenuGeneration();
+                                
+                                // 생성 시작 메시지 표시
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text('맞춤 식단을 생성 중입니다. 잠시 기다려주세요.'),
+                                    duration: Duration(seconds: 2),
+                                  ),
+                                );
+                                
+                                // 메인 화면의 홈 탭(인덱스 0)으로 이동
+                                final mainScreenState = context.findAncestorStateOfType<_MainScreenState>();
+                                if (mainScreenState != null) {
+                                  mainScreenState.setState(() {
+                                    mainScreenState._currentIndex = 0; // 홈 탭(인덱스 0)으로 이동
+                                  });
+                                }
+                              },
+                              icon: Icon(Icons.auto_awesome),
+                              label: Text('맞춤 식단 생성하기'),
+                              style: ElevatedButton.styleFrom(
+                                padding: EdgeInsets.symmetric(vertical: 16, horizontal: 24),
+                              ),
+                            ),
+                          ],
                         ),
-                      );
-                      
-                      // 메인 화면의 홈 탭(인덱스 0)으로 이동
-                      final mainScreenState = context.findAncestorStateOfType<_MainScreenState>();
-                      if (mainScreenState != null) {
-                        mainScreenState.setState(() {
-                          mainScreenState._currentIndex = 0; // 홈 탭(인덱스 0)으로 이동
-                        });
-                      }
-                    },
-                    icon: Icon(Icons.auto_awesome),
-                    label: Text('맞춤 식단 생성하기'),
-                    style: ElevatedButton.styleFrom(
-                      padding: EdgeInsets.symmetric(vertical: 16),
+                      ),
                     ),
                   ),
                 ],
@@ -202,15 +243,8 @@ class ProfileScreen extends StatelessWidget {
       
       // 로딩 화면 표시
       return Scaffold(
-        body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              CircularProgressIndicator(),
-              SizedBox(height: 20),
-              Text('사용자 정보를 확인 중입니다...'),
-            ],
-          ),
+        body: FullScreenProgressLoading(
+          message: '사용자 정보를 확인 중입니다...',
         ),
       );
     }
@@ -230,7 +264,7 @@ class ProfileScreen extends StatelessWidget {
                 backgroundColor: Theme.of(context).colorScheme.primary,
                 child: Icon(
                   Icons.person,
-                  size: 60,
+                  size: 50,
                   color: Colors.white,
                 ),
               ),
@@ -422,6 +456,31 @@ class ProfileScreen extends StatelessWidget {
               ),
             ),
             SizedBox(height: 24),
+            // 설정 카드
+            Card(
+              margin: EdgeInsets.symmetric(vertical: 8),
+              child: Column(
+                children: [
+                  ListTile(
+                    leading: Icon(Icons.settings),
+                    title: Text('설정'),
+                    trailing: Icon(Icons.chevron_right),
+                    onTap: () {
+                      // 설정 화면으로 이동 (필요시 구현)
+                    },
+                  ),
+                  Divider(height: 1),
+                  ListTile(
+                    leading: Icon(Icons.edit_document),
+                    title: Text('초기 설문지 다시 보기'),
+                    trailing: Icon(Icons.chevron_right),
+                    onTap: () {
+                      Navigator.of(context).pushNamed('/initial');
+                    },
+                  ),
+                ],
+              ),
+            ),
           ],
         ),
       ),

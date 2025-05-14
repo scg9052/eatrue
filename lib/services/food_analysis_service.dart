@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'package:firebase_vertexai/firebase_vertexai.dart';
 import '../models/user_data.dart';
+import 'dart:async';
+import 'dart:math';
 
 /// 음식명을 입력받아 식재료, 양념, 조리 방식으로 분석하는 서비스
 class FoodAnalysisService {
@@ -280,5 +282,29 @@ ${dishNames.map((name) => "- $name").join('\n')}
   /// 식단에 포함된 특정 메뉴의 상세 정보 가져오기
   Future<Map<String, dynamic>?> getDetailedRecipeForMenu(String menuName, UserData userData) async {
     // ... existing code ...
+    // 구현이 필요한 메서드이므로 기본값 반환
+    return null;
+  }
+
+  FutureOr<Map<String, dynamic>?> analyzeNutritionalValues(String foodName) async {
+    try {
+      // 간략한 예시: 웹 API 호출 구현
+      // final response = await http.get(Uri.parse('$API_URL/nutritional-values?food=$foodName'));
+      // if (response.statusCode == 200) {
+      //   return json.decode(response.body);
+      // } 
+      
+      // 임시로 랜덤 영양소 값 반환 (실제로는 API에서 받아옴)
+      final rng = Random();
+      return {
+        'calories': '${100 + rng.nextInt(300)} kcal',
+        'protein': '${3 + rng.nextInt(20)}g',
+        'carbohydrates': '${10 + rng.nextInt(40)}g',
+        'fat': '${2 + rng.nextInt(15)}g',
+      };
+    } catch (e) {
+      print("⚠️ 영양 분석 중 오류: $e");
+      return null;
+    }
   }
 } 

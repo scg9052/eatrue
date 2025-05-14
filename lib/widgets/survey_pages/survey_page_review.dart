@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/survey_data_provider.dart';
-import '../../models/user_data.dart';
 
 class SurveyPageReview extends StatelessWidget {
   const SurveyPageReview({Key? key}) : super(key: key);

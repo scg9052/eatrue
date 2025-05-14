@@ -1,4 +1,4 @@
-import 'package:firebase_core/firebase_core.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'meal.dart';
 
 class RejectionReason {
@@ -33,130 +33,213 @@ class RejectionReason {
   }
 }
 
+/// 식단 베이스 모델
+/// 
+/// 사용자가 좋아하거나 자주 먹는 음식을 모아둔 컬렉션으로,
+/// 이를 기반으로 식단을 빠르게 추가할 수 있습니다.
 class MealBase {
   final String id;
+  final String userId;
   final String name;
-  final String description;
-  final String category; // 아침, 점심, 저녁, 간식
-  final String? calories;
-  final Map<String, dynamic>? recipeJson;
+  final String category; // 식단 카테고리 (아침, 점심, 저녁, 간식)
+  final String? description;
+  final String? recipeId;
+  final String? imageUrl;
+  final DateTime? createdAt;
   double? rating;
   List<RejectionReason>? rejectionReasons;
   List<String>? tags;
-  final DateTime createdAt;
   DateTime? lastUsedAt;
   int usageCount;
+  Map<String, dynamic>? recipeJson; // 레시피 JSON 추가
+  final String? calories; // 추가된 칼로리 정보 필드
 
+  // Firestore 데이터 변환
   MealBase({
     required this.id,
+    required this.userId,
     required this.name,
-    required this.description,
     required this.category,
-    this.calories,
-    this.recipeJson,
+    this.description,
+    this.recipeId,
+    this.imageUrl,
+    this.createdAt,
     this.rating,
     this.rejectionReasons,
     this.tags,
-    required this.createdAt,
     this.lastUsedAt,
     this.usageCount = 0,
+    this.recipeJson,
+    this.calories,
   });
-
-  Map<String, dynamic> toJson() {
-    return {
-      'id': id,
-      'name': name,
-      'description': description,
-      'category': category,
-      'calories': calories,
-      if (recipeJson != null) 'recipeJson': recipeJson,
-      if (rating != null) 'rating': rating,
-      if (rejectionReasons != null) 
-        'rejectionReasons': rejectionReasons!.map((reason) => reason.toJson()).toList(),
-      if (tags != null) 'tags': tags,
-      'createdAt': createdAt.toIso8601String(),
-      if (lastUsedAt != null) 'lastUsedAt': lastUsedAt!.toIso8601String(),
-      'usageCount': usageCount,
-    };
-  }
-
+  
+  // JSON에서 MealBase 객체 생성 (API 호환용)
   factory MealBase.fromJson(Map<String, dynamic> json) {
+    List<RejectionReason>? rejectionReasons;
+    if (json['rejectionReasons'] != null) {
+      rejectionReasons = (json['rejectionReasons'] as List)
+          .map((item) => RejectionReason.fromJson(item as Map<String, dynamic>))
+          .toList();
+    }
+    
     return MealBase(
       id: json['id'] as String,
+      userId: json['userId'] as String? ?? '',
       name: json['name'] as String,
-      description: json['description'] as String,
       category: json['category'] as String,
-      calories: json['calories'] as String?,
-      recipeJson: json['recipeJson'] as Map<String, dynamic>?,
-      rating: json['rating'] as double?,
-      rejectionReasons: json['rejectionReasons'] != null
-          ? (json['rejectionReasons'] as List)
-              .map((reason) => RejectionReason.fromJson(reason as Map<String, dynamic>))
-              .toList()
+      description: json['description'] as String?,
+      recipeId: json['recipeId'] as String?,
+      imageUrl: json['imageUrl'] as String?,
+      createdAt: json['createdAt'] != null 
+          ? (json['createdAt'] is Timestamp 
+              ? (json['createdAt'] as Timestamp).toDate()
+              : DateTime.parse(json['createdAt'].toString())) 
           : null,
-      tags: json['tags'] != null ? List<String>.from(json['tags'] as List) : null,
-      createdAt: DateTime.parse(json['createdAt'] as String),
-      lastUsedAt: json['lastUsedAt'] != null ? DateTime.parse(json['lastUsedAt'] as String) : null,
+      rating: json['rating'] != null ? (json['rating'] as num).toDouble() : null,
+      rejectionReasons: rejectionReasons,
+      tags: json['tags'] != null ? List<String>.from(json['tags']) : null,
+      lastUsedAt: json['lastUsedAt'] != null 
+          ? (json['lastUsedAt'] is Timestamp 
+              ? (json['lastUsedAt'] as Timestamp).toDate()
+              : DateTime.parse(json['lastUsedAt'].toString()))
+          : null,
       usageCount: json['usageCount'] as int? ?? 0,
+      recipeJson: json['recipeJson'] as Map<String, dynamic>?,
+      calories: json['calories'] as String?,
     );
   }
-
-  // Meal에서 MealBase로 변환하는 팩토리 메서드
-  factory MealBase.fromMeal(Meal meal, {List<String>? tags}) {
+  
+  // MealBase 객체를 JSON으로 변환 (API 호환용)
+  Map<String, dynamic> toJson() {
+    final Map<String, dynamic> data = {
+      'id': id,
+      'userId': userId,
+      'name': name,
+      'category': category,
+      'description': description,
+      'recipeId': recipeId,
+      'imageUrl': imageUrl,
+      'usageCount': usageCount,
+      'calories': calories,
+    };
+    
+    if (createdAt != null) {
+      data['createdAt'] = createdAt!.toIso8601String();
+    }
+    
+    if (rating != null) {
+      data['rating'] = rating;
+    }
+    
+    if (rejectionReasons != null) {
+      data['rejectionReasons'] = rejectionReasons!.map((r) => r.toJson()).toList();
+    }
+    
+    if (tags != null) {
+      data['tags'] = tags;
+    }
+    
+    if (lastUsedAt != null) {
+      data['lastUsedAt'] = lastUsedAt!.toIso8601String();
+    }
+    
+    if (recipeJson != null) {
+      data['recipeJson'] = recipeJson;
+    }
+    
+    return data;
+  }
+  
+  // Firestore 컬렉션에서 문서를 MealBase 객체로 변환
+  factory MealBase.fromFirestore(Map<String, dynamic> data, String id) {
     return MealBase(
-      id: meal.id,
-      name: meal.name,
-      description: meal.description,
-      category: meal.category,
-      calories: meal.calories,
-      recipeJson: meal.recipeJson,
-      tags: tags,
-      createdAt: DateTime.now(),
-      usageCount: 1,
+      id: id,
+      userId: data['userId'] ?? '',
+      name: data['name'] ?? '',
+      category: data['category'] ?? '',
+      description: data['description'],
+      recipeId: data['recipeId'],
+      imageUrl: data['imageUrl'],
+      createdAt: data['createdAt'] != null 
+          ? (data['createdAt'] as Timestamp).toDate() 
+          : null,
+      rating: data['rating'] != null ? (data['rating'] as num).toDouble() : null,
+      tags: data['tags'] != null ? List<String>.from(data['tags']) : null,
+      lastUsedAt: data['lastUsedAt'] != null 
+          ? (data['lastUsedAt'] as Timestamp).toDate() 
+          : null,
+      usageCount: data['usageCount'] as int? ?? 0,
+      recipeJson: data['recipeJson'] as Map<String, dynamic>?,
+      calories: data['calories'] as String?,
     );
   }
-
-  // MealBase를 Meal로 변환하는 메서드
+  
+  // MealBase 객체를 Firestore 문서로 변환
+  Map<String, dynamic> toFirestore() {
+    return {
+      'userId': userId,
+      'name': name,
+      'category': category,
+      'description': description,
+      'recipeId': recipeId,
+      'imageUrl': imageUrl,
+      'createdAt': createdAt ?? DateTime.now(),
+      'rating': rating,
+      'tags': tags,
+      'lastUsedAt': lastUsedAt,
+      'usageCount': usageCount,
+      'recipeJson': recipeJson,
+      'calories': calories,
+    };
+  }
+  
+  // 식단 베이스로부터 새로운 식단 생성
   Meal toMeal(DateTime date) {
     return Meal(
-      id: DateTime.now().millisecondsSinceEpoch.toString(), // 새 ID 생성
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
       name: name,
-      description: description,
-      calories: calories,
+      description: description ?? '',
+      calories: calories != null && calories!.isNotEmpty ? calories! : '칼로리 정보 없음',
       date: date,
       category: category,
       recipeJson: recipeJson,
     );
   }
   
-  // 베이스 메뉴 업데이트를 위한 복제 메서드
+  // 식단 베이스 복사본 생성 (특정 속성 변경 가능)
   MealBase copyWith({
     String? id,
+    String? userId,
     String? name,
-    String? description,
     String? category,
-    String? calories,
-    Map<String, dynamic>? recipeJson,
+    String? description,
+    String? recipeId,
+    String? imageUrl,
+    DateTime? createdAt,
     double? rating,
     List<RejectionReason>? rejectionReasons,
     List<String>? tags,
-    DateTime? createdAt,
     DateTime? lastUsedAt,
     int? usageCount,
+    Map<String, dynamic>? recipeJson,
+    String? calories,
   }) {
     return MealBase(
       id: id ?? this.id,
+      userId: userId ?? this.userId,
       name: name ?? this.name,
-      description: description ?? this.description,
       category: category ?? this.category,
-      calories: calories ?? this.calories,
-      recipeJson: recipeJson ?? this.recipeJson,
+      description: description ?? this.description,
+      recipeId: recipeId ?? this.recipeId,
+      imageUrl: imageUrl ?? this.imageUrl,
+      createdAt: createdAt ?? this.createdAt,
       rating: rating ?? this.rating,
       rejectionReasons: rejectionReasons ?? this.rejectionReasons,
       tags: tags ?? this.tags,
-      createdAt: createdAt ?? this.createdAt,
       lastUsedAt: lastUsedAt ?? this.lastUsedAt,
       usageCount: usageCount ?? this.usageCount,
+      recipeJson: recipeJson ?? this.recipeJson,
+      calories: calories ?? this.calories,
     );
   }
 } 

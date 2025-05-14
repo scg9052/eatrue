@@ -1,6 +1,7 @@
 // services/menu_verification_service.dart
 import 'dart:convert';
 import 'package:firebase_vertexai/firebase_vertexai.dart';
+import '../models/user_data.dart'; // UserData 클래스 임포트 추가
 // import 'dart:typed_data';
 
 class MenuVerificationService {
@@ -15,6 +16,7 @@ class MenuVerificationService {
     required String userDislikes,
     required Map<String, dynamic> userRecommendedNutrients, // "calories", "protein"
     required Map<String, dynamic> customizedDietPlan, // 메뉴 생성 API의 출력과 동일한 구조
+    UserData? userData, // 사용자 상세 정보 추가
   }) async {
     // API 스펙의 "seed" 파라미터 관련 예외는 제거했습니다.
     final generationConfig = GenerationConfig(
@@ -45,6 +47,35 @@ class MenuVerificationService {
     final nutrientsJson = jsonEncode(userRecommendedNutrients);
     final dietPlanJson = jsonEncode(customizedDietPlan);
 
+    // 사용자 상세 정보가 있는 경우
+    String userDataInfo = '';
+    if (userData != null) {
+      userDataInfo = '''
+Additional User Details:
+- Age: ${userData.age ?? 'Not specified'}
+- Gender: ${userData.gender ?? 'Not specified'}
+- Height: ${userData.height != null ? '${userData.height}cm' : 'Not specified'}
+- Weight: ${userData.weight != null ? '${userData.weight}kg' : 'Not specified'}
+- Activity Level: ${userData.activityLevel ?? 'Normal'}
+- Favorite Foods: ${userData.favoriteFoods.isNotEmpty ? userData.favoriteFoods.join(', ') : 'No specific preferences'}
+- Disliked Foods: ${userData.dislikedFoods.isNotEmpty ? userData.dislikedFoods.join(', ') : 'No specific dislikes'}
+- Preferred Cooking Methods: ${userData.preferredCookingMethods.isNotEmpty ? userData.preferredCookingMethods.join(', ') : 'No specific preferences'}
+- Available Cooking Tools: ${userData.availableCookingTools.isNotEmpty ? userData.availableCookingTools.join(', ') : 'Basic cooking tools'}
+- Allergies: ${userData.allergies.isNotEmpty ? userData.allergies.join(', ') : 'None'}
+- Is Vegan: ${userData.isVegan ? 'Yes' : 'No'}
+- Religious Restrictions: ${userData.isReligious ? (userData.religionDetails ?? 'Yes') : 'None'}
+- Meal Purpose: ${userData.mealPurpose.isNotEmpty ? userData.mealPurpose.join(', ') : 'General meals'}
+- Budget: ${userData.mealBudget != null ? '${userData.mealBudget} KRW' : 'Not specified'}
+- Preferred Cooking Time: ${userData.preferredCookingTime != null ? 'Within ${userData.preferredCookingTime} minutes' : 'No limitation'}
+- Preferred Ingredients: ${userData.preferredIngredients.isNotEmpty ? userData.preferredIngredients.join(', ') : 'No specific preferences'}
+- Preferred Seasonings: ${userData.preferredSeasonings.isNotEmpty ? userData.preferredSeasonings.join(', ') : 'No specific preferences'}
+- Preferred Cooking Styles: ${userData.preferredCookingStyles.isNotEmpty ? userData.preferredCookingStyles.join(', ') : 'No specific preferences'}
+- Disliked Ingredients: ${userData.dislikedIngredients.isNotEmpty ? userData.dislikedIngredients.join(', ') : 'No specific dislikes'}
+- Disliked Seasonings: ${userData.dislikedSeasonings.isNotEmpty ? userData.dislikedSeasonings.join(', ') : 'No specific dislikes'}
+- Disliked Cooking Styles: ${userData.dislikedCookingStyles.isNotEmpty ? userData.dislikedCookingStyles.join(', ') : 'No specific dislikes'}
+''';
+    }
+
     final userPrompt = '''
 You will be provided with the following information:
 
@@ -52,6 +83,7 @@ You will be provided with the following information:
 * User Dislikes: $userDislikes
 * User's Recommended Nutrients: $nutrientsJson
 * Customized Diet Plan (in JSON format): $dietPlanJson
+${userDataInfo.isNotEmpty ? '* $userDataInfo' : ''}
 
 Follow these steps to evaluate the diet plan:
 

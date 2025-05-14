@@ -1,4 +1,4 @@
-// widgets/survey_pages/survey_page_personal_info.dart
+ // widgets/survey_pages/survey_page_personal_info.dart
 // (UserData에 activityLevel 추가됨에 따라, 해당 정보 입력 UI 추가)
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';

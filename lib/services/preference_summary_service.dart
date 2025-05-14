@@ -15,7 +15,8 @@ class PreferenceSummaryService {
     List<String> preferredIngredients = const [],
     List<String> preferredSeasonings = const [],
     int desiredCookingTime = 30,
-    double desiredFoodCost = 10000
+    double desiredFoodCost = 10000,
+    List<String> mealPurpose = const [], // 사용자의 식단 목적 추가
   }) async {
     final generationConfig = GenerationConfig(
       maxOutputTokens: 8192,
@@ -59,6 +60,7 @@ Preferred Ingredients: ${preferredIngredients.join(', ')}
 Preferred Seasonings: ${preferredSeasonings.join(', ')}
 Desired Cooking Time: $desiredCookingTime
 Desired Food Cost: $desiredFoodCost
+Meal Purpose: ${mealPurpose.isEmpty ? 'Not specified' : mealPurpose.join(', ')}
 
 Organize the provided information into a concise summary document suitable for guiding menu creation.
 ''';
@@ -78,7 +80,8 @@ Organize the provided information into a concise summary document suitable for g
   Future<String?> summarizeUserPreferences(UserData userData) async {
     const systemInstructionText = '''
 당신은 영양과 요리 전문가입니다. 
-사용자의 식품 선호도 정보를 간결하게 요약하는 역할을 합니다.
+사용자의 식품 선호도 정보를 정확하고 구체적으로 요약하는 역할을 합니다.
+항상 모든 항목을 구체적으로 나열하고, '등 다양한 식재료'와 같은 모호한 표현은 사용하지 마세요.
 ''';
 
     final userPrompt = '''
@@ -92,9 +95,15 @@ Organize the provided information into a concise summary document suitable for g
 * 기존 선호 음식: ${userData.favoriteFoods.isEmpty ? '정보 없음' : userData.favoriteFoods.join(', ')}
 * 조리 시간 선호: ${userData.preferredCookingTime ?? 30}분 이내
 * 식사 비용 선호: ${userData.mealBudget ?? 10000}원 이내
+* 식단 목적: ${userData.mealPurpose.isEmpty ? '정보 없음' : userData.mealPurpose.join(', ')}
 
-요약은 위 정보를 바탕으로 사용자의 식품 선호도를 2-3문장으로 압축하여 서술해주세요.
-구체적인 식재료, 양념, 조리 방식 등을 언급하되, 중요한 정보만 간결하게 포함해주세요.
+요약 작성 요구사항:
+1. 요약은 사용자의 식품 선호도를 2-3문장으로 압축하여 서술해주세요.
+2. 모든 선호 식재료, 양념, 조리 방식을 구체적으로 언급하세요.
+3. "등"이나 "다양한"과 같은 모호한 표현을 사용하지 마세요.
+4. 리스트가 길 경우, 가장 중요한 3-4개 항목을 선택하여 구체적으로 언급하세요.
+5. 없는 정보나 지나치게 일반적인 정보는 생략하세요.
+6. 식단 목적을 반드시 포함하여 사용자의 영양학적 니즈가 잘 드러나도록 요약해주세요.
 ''';
 
     final generationConfig = GenerationConfig(

@@ -7,6 +7,13 @@ import '../models/recipe.dart';
 import 'recipe_detail_screen.dart';
 import 'package:intl/intl.dart';
 
+enum SortOption {
+  newest,
+  rating,
+  usageCount,
+  calories
+}
+
 class MealBaseScreen extends StatefulWidget {
   const MealBaseScreen({Key? key}) : super(key: key);
 
@@ -18,6 +25,7 @@ class _MealBaseScreenState extends State<MealBaseScreen> with SingleTickerProvid
   late TabController _tabController;
   String _searchQuery = '';
   final TextEditingController _searchController = TextEditingController();
+  SortOption _currentSortOption = SortOption.newest;
   
   @override
   void initState() {
@@ -48,41 +56,137 @@ class _MealBaseScreenState extends State<MealBaseScreen> with SingleTickerProvid
       ),
       body: Column(
         children: [
-          // 검색창
+          // 검색창 및 정렬 옵션
           Padding(
             padding: const EdgeInsets.all(16.0),
-            child: TextField(
-              controller: _searchController,
-              decoration: InputDecoration(
-                hintText: '식단 검색',
-                prefixIcon: Icon(Icons.search),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _searchController,
+                    decoration: InputDecoration(
+                      hintText: '식단 검색',
+                      prefixIcon: Icon(Icons.search),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      contentPadding: EdgeInsets.symmetric(vertical: 0, horizontal: 16),
+                    ),
+                    onChanged: (value) {
+                      setState(() {
+                        _searchQuery = value;
+                      });
+                    },
+                  ),
                 ),
-                contentPadding: EdgeInsets.symmetric(vertical: 0, horizontal: 16),
-              ),
-              onChanged: (value) {
-                setState(() {
-                  _searchQuery = value;
-                });
-              },
+                SizedBox(width: 8),
+                PopupMenuButton<SortOption>(
+                  icon: Icon(Icons.sort),
+                  tooltip: '정렬 옵션',
+                  initialValue: _currentSortOption,
+                  onSelected: (SortOption option) {
+                    setState(() {
+                      _currentSortOption = option;
+                    });
+                  },
+                  itemBuilder: (context) => [
+                    PopupMenuItem(
+                      value: SortOption.newest,
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.access_time,
+                            color: _currentSortOption == SortOption.newest
+                                ? Theme.of(context).primaryColor
+                                : null,
+                            size: 18,
+                          ),
+                          SizedBox(width: 8),
+                          Text('최신순'),
+                        ],
+                      ),
+                    ),
+                    PopupMenuItem(
+                      value: SortOption.rating,
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.star,
+                            color: _currentSortOption == SortOption.rating
+                                ? Theme.of(context).primaryColor
+                                : null,
+                            size: 18,
+                          ),
+                          SizedBox(width: 8),
+                          Text('별점순'),
+                        ],
+                      ),
+                    ),
+                    PopupMenuItem(
+                      value: SortOption.usageCount,
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.repeat,
+                            color: _currentSortOption == SortOption.usageCount
+                                ? Theme.of(context).primaryColor
+                                : null,
+                            size: 18,
+                          ),
+                          SizedBox(width: 8),
+                          Text('사용 빈도순'),
+                        ],
+                      ),
+                    ),
+                    PopupMenuItem(
+                      value: SortOption.calories,
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.local_fire_department,
+                            color: _currentSortOption == SortOption.calories
+                                ? Theme.of(context).primaryColor
+                                : null,
+                            size: 18,
+                          ),
+                          SizedBox(width: 8),
+                          Text('칼로리순'),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ),
           ),
           
           // 탭바
-          TabBar(
-            controller: _tabController,
-            isScrollable: true,
-            tabs: [
-              Tab(text: '전체'),
-              Tab(text: '아침'),
-              Tab(text: '점심'),
-              Tab(text: '저녁'),
-              Tab(text: '간식'),
-            ],
-            labelColor: Theme.of(context).colorScheme.primary,
-            unselectedLabelColor: Colors.grey[600],
-            indicatorSize: TabBarIndicatorSize.label,
+          Container(
+            decoration: BoxDecoration(
+              border: Border(
+                bottom: BorderSide(
+                  color: Colors.grey[300]!,
+                  width: 1,
+                ),
+              ),
+            ),
+            child: TabBar(
+              controller: _tabController,
+              isScrollable: true,
+              tabs: [
+                Tab(text: '전체'),
+                _buildCategoryTab('아침'),
+                _buildCategoryTab('점심'),
+                _buildCategoryTab('저녁'),
+                _buildCategoryTab('간식'),
+              ],
+              labelColor: Theme.of(context).colorScheme.primary,
+              unselectedLabelColor: Colors.grey[600],
+              labelStyle: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              unselectedLabelStyle: TextStyle(fontSize: 14),
+              indicatorSize: TabBarIndicatorSize.label,
+              indicatorWeight: 3,
+            ),
           ),
           
           // 식단 베이스 목록
@@ -92,11 +196,11 @@ class _MealBaseScreenState extends State<MealBaseScreen> with SingleTickerProvid
                 : TabBarView(
                     controller: _tabController,
                     children: [
-                      _buildMealBaseList(mealProvider.mealBases, '전체'),
-                      _buildMealBaseList(mealProvider.mealBasesByCategory['아침'] ?? [], '아침'),
-                      _buildMealBaseList(mealProvider.mealBasesByCategory['점심'] ?? [], '점심'),
-                      _buildMealBaseList(mealProvider.mealBasesByCategory['저녁'] ?? [], '저녁'),
-                      _buildMealBaseList(mealProvider.mealBasesByCategory['간식'] ?? [], '간식'),
+                      _buildMealBaseGrid(mealProvider.mealBases, '전체'),
+                      _buildMealBaseGrid(mealProvider.mealBasesByCategory['아침'] ?? [], '아침'),
+                      _buildMealBaseGrid(mealProvider.mealBasesByCategory['점심'] ?? [], '점심'),
+                      _buildMealBaseGrid(mealProvider.mealBasesByCategory['저녁'] ?? [], '저녁'),
+                      _buildMealBaseGrid(mealProvider.mealBasesByCategory['간식'] ?? [], '간식'),
                     ],
                   ),
           ),
@@ -104,8 +208,27 @@ class _MealBaseScreenState extends State<MealBaseScreen> with SingleTickerProvid
       ),
     );
   }
+
+  Widget _buildCategoryTab(String category) {
+    return Tab(
+      child: Container(
+        padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(20),
+          color: _getCategoryColor(category).withOpacity(0.1),
+        ),
+        child: Text(
+          category,
+          style: TextStyle(
+            color: _getCategoryColor(category),
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ),
+    );
+  }
   
-  Widget _buildMealBaseList(List<MealBase> mealBases, String category) {
+  Widget _buildMealBaseGrid(List<MealBase> mealBases, String category) {
     // 검색 필터링
     final filteredMealBases = _searchQuery.isNotEmpty
         ? mealBases.where((mealBase) {
@@ -114,7 +237,33 @@ class _MealBaseScreenState extends State<MealBaseScreen> with SingleTickerProvid
           }).toList()
         : mealBases;
     
-    if (filteredMealBases.isEmpty) {
+    // 정렬 옵션에 따라 정렬
+    List<MealBase> sortedMealBases = [...filteredMealBases];
+    switch (_currentSortOption) {
+      case SortOption.newest:
+        sortedMealBases.sort((a, b) => (b.createdAt ?? DateTime(2000)).compareTo(a.createdAt ?? DateTime(2000)));
+        break;
+      case SortOption.rating:
+        sortedMealBases.sort((a, b) => (b.rating ?? 0).compareTo(a.rating ?? 0));
+        break;
+      case SortOption.usageCount:
+        sortedMealBases.sort((a, b) => b.usageCount.compareTo(a.usageCount));
+        break;
+      case SortOption.calories:
+        sortedMealBases.sort((a, b) {
+          // 칼로리 추출 및 비교
+          int getCalorieValue(String? calories) {
+            if (calories == null || calories.isEmpty) return 0;
+            // 숫자만 추출
+            final numMatch = RegExp(r'(\d+)').firstMatch(calories);
+            return numMatch != null ? int.parse(numMatch.group(1)!) : 0;
+          }
+          return getCalorieValue(b.calories).compareTo(getCalorieValue(a.calories));
+        });
+        break;
+    }
+    
+    if (sortedMealBases.isEmpty) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -151,11 +300,21 @@ class _MealBaseScreenState extends State<MealBaseScreen> with SingleTickerProvid
       );
     }
     
-    return ListView.builder(
+    // 화면 너비에 따라 열 수 계산
+    final screenWidth = MediaQuery.of(context).size.width;
+    final crossAxisCount = (screenWidth / 300).floor().clamp(1, 3);
+    
+    return GridView.builder(
       padding: EdgeInsets.all(16),
-      itemCount: filteredMealBases.length,
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: crossAxisCount,
+        childAspectRatio: 1.1,
+        crossAxisSpacing: 12,
+        mainAxisSpacing: 12,
+      ),
+      itemCount: sortedMealBases.length,
       itemBuilder: (context, index) {
-        final mealBase = filteredMealBases[index];
+        final mealBase = sortedMealBases[index];
         return _buildMealBaseCard(mealBase);
       },
     );
@@ -166,7 +325,7 @@ class _MealBaseScreenState extends State<MealBaseScreen> with SingleTickerProvid
     final bool hasRejectionReasons = mealBase.rejectionReasons != null && mealBase.rejectionReasons!.isNotEmpty;
     
     return Card(
-      margin: EdgeInsets.only(bottom: 16),
+      elevation: 2,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
         side: BorderSide(
@@ -180,7 +339,7 @@ class _MealBaseScreenState extends State<MealBaseScreen> with SingleTickerProvid
         },
         borderRadius: BorderRadius.circular(12),
         child: Padding(
-          padding: EdgeInsets.all(16),
+          padding: EdgeInsets.all(12),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -197,12 +356,14 @@ class _MealBaseScreenState extends State<MealBaseScreen> with SingleTickerProvid
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
                           ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
                         ),
                         SizedBox(height: 4),
                         Text(
-                          mealBase.description,
+                          mealBase.description ?? '설명 없음',
                           style: TextStyle(
-                            fontSize: 14,
+                            fontSize: 13,
                             color: Colors.grey[700],
                           ),
                           maxLines: 2,
@@ -211,54 +372,36 @@ class _MealBaseScreenState extends State<MealBaseScreen> with SingleTickerProvid
                       ],
                     ),
                   ),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Container(
-                        padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: _getCategoryColor(mealBase.category).withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Text(
-                          mealBase.category,
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: _getCategoryColor(mealBase.category),
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
+                  Container(
+                    padding: EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: _getCategoryColor(mealBase.category).withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: _getCategoryColor(mealBase.category).withOpacity(0.5),
+                        width: 1,
                       ),
-                      if (hasRejectionReasons)
-                        Padding(
-                          padding: EdgeInsets.only(top: 8),
-                          child: Container(
-                            padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: Colors.red.withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Text(
-                              '기각됨',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.red[700],
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                        ),
-                    ],
+                    ),
+                    child: Text(
+                      mealBase.category,
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: _getCategoryColor(mealBase.category),
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                   ),
                 ],
               ),
-              SizedBox(height: 16),
+              Spacer(),
+              Divider(),
+              // 칼로리 정보
               Row(
                 children: [
                   Icon(
                     Icons.local_fire_department,
                     size: 16,
-                    color: Colors.orange[400],
+                    color: Colors.orange[600],
                   ),
                   SizedBox(width: 4),
                   Text(
@@ -268,63 +411,97 @@ class _MealBaseScreenState extends State<MealBaseScreen> with SingleTickerProvid
                     style: TextStyle(
                       fontSize: 12,
                       color: Colors.grey[700],
+                      fontWeight: FontWeight.w500,
                     ),
                   ),
-                  Spacer(),
+                ],
+              ),
+              SizedBox(height: 4),
+              // 사용 횟수와 별점
+              Row(
+                children: [
                   if (mealBase.usageCount > 0) ...[
                     Icon(
                       Icons.repeat,
-                      size: 16,
-                      color: Colors.blue[400],
+                      size: 14,
+                      color: Colors.blue[500],
                     ),
                     SizedBox(width: 4),
                     Text(
-                      '${mealBase.usageCount}회 사용',
+                      '${mealBase.usageCount}회',
                       style: TextStyle(
                         fontSize: 12,
                         color: Colors.grey[700],
                       ),
                     ),
                   ],
-                  SizedBox(width: 8),
+                  Spacer(),
                   if (mealBase.rating != null) ...[
                     Icon(
                       Icons.star,
                       size: 16,
                       color: Colors.amber[600],
                     ),
-                    SizedBox(width: 4),
+                    SizedBox(width: 2),
                     Text(
                       mealBase.rating!.toStringAsFixed(1),
                       style: TextStyle(
                         fontSize: 12,
-                        color: Colors.grey[700],
+                        color: Colors.grey[800],
+                        fontWeight: FontWeight.w500,
                       ),
                     ),
                   ],
                 ],
               ),
+              // 태그 표시
               if (mealBase.tags != null && mealBase.tags!.isNotEmpty) ...[
                 SizedBox(height: 8),
                 Wrap(
-                  spacing: 8,
+                  spacing: 4,
                   runSpacing: 4,
-                  children: mealBase.tags!.map((tag) {
-                    return Chip(
-                      label: Text(
-                        tag,
-                        style: TextStyle(fontSize: 10),
-                      ),
-                      backgroundColor: Colors.grey[200],
-                      padding: EdgeInsets.zero,
-                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      labelPadding: EdgeInsets.symmetric(horizontal: 4),
-                    );
-                  }).toList(),
+                  children: mealBase.tags!.map((tag) => _buildTagChip(tag)).toList(),
                 ),
               ],
             ],
           ),
+        ),
+      ),
+    );
+  }
+
+  // 태그 칩 위젯
+  Widget _buildTagChip(String tag) {
+    Color tagColor;
+    
+    // 특별한 태그에 대한 색상 지정
+    if (tag == '자동 생성') {
+      tagColor = Colors.blue;
+    } else if (tag == '추천 메뉴') {
+      tagColor = Colors.purple;
+    } else if (tag == '인기 메뉴') {
+      tagColor = Colors.red;
+    } else {
+      // 기본 태그 색상
+      tagColor = Colors.grey[700]!;
+    }
+    
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: tagColor.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(
+          color: tagColor.withOpacity(0.5),
+          width: 1,
+        ),
+      ),
+      child: Text(
+        tag,
+        style: TextStyle(
+          fontSize: 10,
+          color: tagColor,
+          fontWeight: FontWeight.w500,
         ),
       ),
     );
@@ -402,7 +579,7 @@ class _MealBaseScreenState extends State<MealBaseScreen> with SingleTickerProvid
               ),
               SizedBox(height: 16),
               Text(
-                mealBase.description,
+                mealBase.description ?? '설명 없음',
                 style: TextStyle(
                   fontSize: 14,
                   color: Colors.grey[700],
@@ -630,25 +807,62 @@ class _MealBaseScreenState extends State<MealBaseScreen> with SingleTickerProvid
     );
     
     if (pickedDate != null) {
+      // 로딩 인디케이터 표시
+      final scaffoldMessenger = ScaffoldMessenger.of(context);
+      scaffoldMessenger.showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              SizedBox(
+                width: 20, 
+                height: 20, 
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                ),
+              ),
+              SizedBox(width: 16),
+              Text('${mealBase.name} 추가 중...')
+            ],
+          ),
+          duration: Duration(seconds: 30), // 충분히 긴 시간으로 설정
+        ),
+      );
+      
+      Navigator.pop(context); // 상세 다이얼로그 닫기
+      
       final mealProvider = Provider.of<MealProvider>(context, listen: false);
-      Navigator.pop(context);
       
       try {
+        // 비동기 작업 시작 전에 상태 업데이트를 위해 약간의 지연 추가
+        await Future.delayed(Duration(milliseconds: 300));
+        
         await mealProvider.saveMealFromMealBase(mealBase, pickedDate);
-        ScaffoldMessenger.of(context).showSnackBar(
+        
+        // 기존 스낵바 제거
+        scaffoldMessenger.hideCurrentSnackBar();
+        
+        // 성공 메시지 표시
+        scaffoldMessenger.showSnackBar(
           SnackBar(
             content: Text('${mealBase.name}이(가) ${DateFormat('yyyy년 MM월 dd일').format(pickedDate)}에 추가되었습니다'),
+            backgroundColor: Colors.green,
             behavior: SnackBarBehavior.floating,
           ),
         );
       } catch (e) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        // 기존 스낵바 제거
+        scaffoldMessenger.hideCurrentSnackBar();
+        
+        // 오류 메시지 표시
+        scaffoldMessenger.showSnackBar(
           SnackBar(
             content: Text('식단 추가 중 오류: $e'),
             backgroundColor: Colors.red,
             behavior: SnackBarBehavior.floating,
           ),
         );
+        print('식단 베이스에서 캘린더 추가 중 오류: $e');
       }
     }
   }
@@ -663,34 +877,39 @@ class _MealBaseScreenState extends State<MealBaseScreen> with SingleTickerProvid
           builder: (context, setState) {
             return AlertDialog(
               title: Text('식단 평가'),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(mealBase.name, style: TextStyle(fontWeight: FontWeight.bold)),
-                  SizedBox(height: 16),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: List.generate(5, (index) {
-                      return IconButton(
-                        icon: Icon(
-                          index < currentRating.round() ? Icons.star : Icons.star_border,
-                          color: Colors.amber,
-                          size: 32,
-                        ),
-                        onPressed: () {
-                          setState(() {
-                            currentRating = index + 1.0;
-                          });
-                        },
-                      );
-                    }),
-                  ),
-                  SizedBox(height: 8),
-                  Text(
-                    currentRating > 0 ? '$currentRating / 5.0' : '평가하지 않음',
-                    style: TextStyle(fontSize: 16),
-                  ),
-                ],
+              content: Container(
+                width: double.maxFinite,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(mealBase.name, style: TextStyle(fontWeight: FontWeight.bold)),
+                    SizedBox(height: 16),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: List.generate(5, (index) {
+                        return IconButton(
+                          icon: Icon(
+                            index < currentRating.round() ? Icons.star : Icons.star_border,
+                            color: Colors.amber,
+                            size: 26,
+                          ),
+                          padding: EdgeInsets.all(4),
+                          constraints: BoxConstraints(),
+                          onPressed: () {
+                            setState(() {
+                              currentRating = index + 1.0;
+                            });
+                          },
+                        );
+                      }),
+                    ),
+                    SizedBox(height: 8),
+                    Text(
+                      currentRating > 0 ? '$currentRating / 5.0' : '평가하지 않음',
+                      style: TextStyle(fontSize: 16),
+                    ),
+                  ],
+                ),
               ),
               actions: [
                 TextButton(
