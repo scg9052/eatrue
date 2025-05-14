@@ -25,136 +25,170 @@ class DateSelector extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDarkMode = theme.brightness == Brightness.dark;
+    final screenWidth = MediaQuery.of(context).size.width;
+    final buttonWidth = (screenWidth - 32) / 7; // 양쪽 패딩 16씩 제외하고 7등분
     
     return Container(
-      color: isDarkMode 
-          ? theme.colorScheme.primary.withOpacity(0.15) // 다크모드에서는 더 진한 배경색
-          : theme.colorScheme.primary.withOpacity(0.05),
+      // 배경색을 스크린샷과 같이 다크한 색상으로 변경
+      color: Color(0xFF2D2D2D),
       padding: EdgeInsets.symmetric(vertical: 8),
       child: Column(
         children: [
-          // 현재 월 표시
+          // 현재 월 표시 및 주차 이동 버튼
           Padding(
             padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
+                // 이전 주 버튼
+                IconButton(
+                  onPressed: () {
+                    // 일주일 전 날짜로 이동
+                    final previousWeekDate = selectedDate.subtract(Duration(days: 7));
+                    onDateSelected(previousWeekDate);
+                  },
+                  icon: Icon(Icons.chevron_left, color: Colors.white),
+                  tooltip: '이전 주',
+                ),
+                
+                // 현재 월 표시
                 Text(
                   '${selectedDate.year}년 ${selectedDate.month}월',
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: 16,
-                    color: theme.colorScheme.primary,
+                    color: Colors.white,
                   ),
+                ),
+                
+                // 다음 주 버튼
+                IconButton(
+                  onPressed: () {
+                    // 일주일 후 날짜로 이동
+                    final nextWeekDate = selectedDate.add(Duration(days: 7));
+                    onDateSelected(nextWeekDate);
+                  },
+                  icon: Icon(Icons.chevron_right, color: Colors.white),
+                  tooltip: '다음 주',
                 ),
               ],
             ),
           ),
           
-          // 요일 및 날짜 선택 행
-          SizedBox(
-            height: 80,
-            child: ListView.builder(
-              scrollDirection: Axis.horizontal,
-              padding: EdgeInsets.symmetric(horizontal: 8),
-              itemCount: weekDates.length,
-              itemBuilder: (context, index) {
-                final date = weekDates[index];
-                final isSelected = date.year == selectedDate.year && 
-                                   date.month == selectedDate.month && 
-                                   date.day == selectedDate.day;
-                final today = _isToday(date);
-                // 날짜가 다른 월에 속하는지 확인
-                final isDifferentMonth = date.month != selectedDate.month;
-                
-                // 요일 이름 (월~일)
-                String weekdayName = '';
-                switch (date.weekday) {
-                  case 1: weekdayName = '월'; break;
-                  case 2: weekdayName = '화'; break;
-                  case 3: weekdayName = '수'; break;
-                  case 4: weekdayName = '목'; break;
-                  case 5: weekdayName = '금'; break;
-                  case 6: weekdayName = '토'; break;
-                  case 7: weekdayName = '일'; break;
-                }
-
-                // 요일별 색상 설정 (다크모드 대응)
-                Color weekdayColor;
-                if (isSelected) {
-                  weekdayColor = Colors.white;
-                } else if (date.weekday == 7) { // 일요일
-                  weekdayColor = Colors.red.shade300;
-                } else if (date.weekday == 6) { // 토요일
-                  weekdayColor = Colors.blue.shade300;
-                } else {
-                  weekdayColor = isDarkMode ? Colors.white70 : Colors.black87;
-                }
-                
-                return GestureDetector(
-                  onTap: () => onDateSelected(date),
-                  child: Container(
-                    width: 50,
-                    margin: EdgeInsets.symmetric(horizontal: 2),
-                    decoration: BoxDecoration(
-                      color: isSelected 
-                          ? theme.colorScheme.primary
-                          : (today ? theme.colorScheme.primary.withOpacity(0.1) : Colors.transparent),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        // 요일 표시
-                        Text(
-                          weekdayName,
-                          style: TextStyle(
-                            color: weekdayColor,
-                            fontWeight: FontWeight.w500,
-                            fontSize: 14,
-                          ),
-                        ),
-                        SizedBox(height: 4),
-                        // 날짜 표시
-                        Container(
-                          width: 32,
-                          height: 32,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: isSelected 
-                                ? Colors.white 
-                                : (today 
-                                    ? theme.colorScheme.primary 
-                                    : Colors.transparent),
-                          ),
-                          child: Center(
-                            child: Text(
-                              '${date.day}',
-                              style: TextStyle(
-                                color: isSelected 
-                                    ? theme.colorScheme.primary 
-                                    : (today 
-                                        ? Colors.white 
-                                        : (isDifferentMonth 
-                                            ? (isDarkMode ? Colors.grey[400] : Colors.grey) 
-                                            : (isDarkMode ? Colors.white : Colors.black))),
-                                fontWeight: isSelected || today 
-                                    ? FontWeight.bold 
-                                    : FontWeight.normal,
-                                fontSize: 14,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-              },
+          // 요일 표시 행
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                _buildWeekdayLabel('월', Colors.white, buttonWidth),
+                _buildWeekdayLabel('화', Colors.white, buttonWidth),
+                _buildWeekdayLabel('수', Colors.white, buttonWidth),
+                _buildWeekdayLabel('목', Colors.white, buttonWidth),
+                _buildWeekdayLabel('금', Colors.white, buttonWidth),
+                _buildWeekdayLabel('토', Colors.blue[300]!, buttonWidth),
+                _buildWeekdayLabel('일', Colors.red[300]!, buttonWidth),
+              ],
+            ),
+          ),
+          
+          SizedBox(height: 8),
+          
+          // 날짜 선택 행
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                // 날짜 버튼들을 동적으로 생성하고 Row의 공간을 균등하게 차지하도록 수정
+                for (int index = 0; index < weekDates.length; index++)
+                  _buildDateButton(context, weekDates[index], buttonWidth),
+              ],
             ),
           ),
         ],
       ),
     );
+  }
+  
+  // 요일 레이블 위젯
+  Widget _buildWeekdayLabel(String text, Color color, double width) {
+    return Container(
+      width: width,
+      child: Text(
+        text,
+        style: TextStyle(
+          color: color,
+          fontSize: 14,
+        ),
+        textAlign: TextAlign.center,
+      ),
+    );
+  }
+  
+  // 날짜 버튼 위젯
+  Widget _buildDateButton(BuildContext context, DateTime date, double width) {
+    final isSelected = date.year == selectedDate.year && 
+                      date.month == selectedDate.month && 
+                      date.day == selectedDate.day;
+    final isToday = _isToday(date);
+    final isDifferentMonth = date.month != selectedDate.month;
+    
+    // 선택된 날짜와 오늘 날짜 스타일링 준비
+    final buttonSize = width * 0.8; // 버튼 크기를 너비의 80%로 설정
+    
+    return GestureDetector(
+      onTap: () => onDateSelected(date),
+      child: Container(
+        width: width,
+        height: 56, // 충분한 높이 제공
+        child: Center(
+          child: Container(
+            width: buttonSize,
+            height: buttonSize,
+            decoration: BoxDecoration(
+              color: isSelected ? Color(0xFF7EC176) : Colors.transparent, // 선택된 날짜는 초록색 배경
+              border: isToday && !isSelected 
+                  ? Border.all(color: Color(0xFF7EC176), width: 2) // 오늘 날짜는 초록색 테두리
+                  : null,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Center(
+              child: Text(
+                '${date.day}',
+                style: TextStyle(
+                  color: _getDateTextColor(isSelected, isToday, isDifferentMonth, date),
+                  fontWeight: (isSelected || isToday) ? FontWeight.bold : FontWeight.normal,
+                  fontSize: 16,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+  
+  // 날짜 텍스트 색상 결정 함수
+  Color _getDateTextColor(bool isSelected, bool isToday, bool isDifferentMonth, DateTime date) {
+    // 선택된 날짜는 항상 하얀색
+    if (isSelected) {
+      return Colors.white;
+    }
+    
+    // 다른 달의 날짜는 회색
+    if (isDifferentMonth) {
+      return Colors.grey;
+    }
+    
+    // 요일에 따른 색상
+    if (date.weekday == 6) { // 토요일
+      return Colors.blue[300]!;
+    } else if (date.weekday == 7) { // 일요일
+      return Colors.red[300]!;
+    }
+    
+    // 기본 색상
+    return Colors.white;
   }
 } 

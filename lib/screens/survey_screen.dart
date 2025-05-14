@@ -198,65 +198,84 @@ class _SurveyScreenState extends State<SurveyScreen> with AutomaticKeepAliveClie
   @override
   Widget build(BuildContext context) {
     super.build(context); // AutomaticKeepAliveClientMixin 사용 시 필요
-    
-    // 설문 단계 설정
-    final steps = _steps;
-    final currentIndex = _currentPageIndex;
-    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
-    final themeColor = Theme.of(context).colorScheme.primary;
+    final surveyDataProvider = Provider.of<SurveyDataProvider>(context);
     
     return Scaffold(
-      appBar: EatrueAppBar(
-        title: '개인 맞춤 설문',
-        subtitle: '${currentIndex + 1}/${steps.length} 단계',
-        showBackButton: true,
+      appBar: AppBar(
+        title: Text('맞춤 설문'),
+        elevation: 0,
+        actions: [
+          // 이미 설문을 완료한 사용자를 위한 액션 버튼
+          if (surveyDataProvider.isSurveyCompleted)
+            TextButton.icon(
+              onPressed: () {
+                showDialog(
+                  context: context,
+                  builder: (context) => AlertDialog(
+                    title: Text('메인 화면으로 돌아가기'),
+                    content: Text('설문을 이미 완료했습니다. 변경 사항을 저장하지 않고 메인 화면으로 돌아가시겠습니까?'),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        child: Text('취소'),
+                      ),
+                      ElevatedButton(
+                        onPressed: () {
+                          Navigator.of(context).pop();
+                          Navigator.of(context).pushNamedAndRemoveUntil('/home', (route) => false);
+                        },
+                        child: Text('돌아가기'),
+                      ),
+                    ],
+                  ),
+                );
+              },
+              icon: Icon(Icons.home, color: Colors.white),
+              label: Text('메인 화면', style: TextStyle(color: Colors.white)),
+            ),
+        ],
       ),
-      body: Column(
+      body: _isLoading
+          ? FullScreenProgressLoading(message: '설문 데이터를 저장하는 중...')
+          : Column(
         children: [
           // 설문 스텝퍼 표시
           Theme(
             data: Theme.of(context).copyWith(
               tabBarTheme: TabBarTheme(
-                labelColor: themeColor,
-                unselectedLabelColor: isDarkMode ? Colors.grey[400] : Colors.grey[600],
+                labelColor: Theme.of(context).colorScheme.primary,
+                unselectedLabelColor: Theme.of(context).textTheme.bodyMedium?.color,
                 indicatorSize: TabBarIndicatorSize.tab,
                 labelStyle: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, fontFamily: 'NotoSansKR'),
                 unselectedLabelStyle: TextStyle(fontSize: 14, fontFamily: 'NotoSansKR'),
               ),
             ),
             child: SurveyStepper(
-              steps: steps,
-              currentStep: currentIndex,
+              steps: _steps,
+              currentStep: _currentPageIndex,
               onStepTapped: _goToStep,
-              totalSteps: steps.length,
+              totalSteps: _steps.length,
             ),
           ),
           
           Expanded(
-            child: _isLoading
-              ? Center(
-                  child: ProgressLoadingBar(
-                    message: '설문 저장 중...',
-                    color: themeColor,
-                  ),
-                )
-              : PageView(
-                  controller: _pageController,
-                  physics: NeverScrollableScrollPhysics(),
-                  onPageChanged: (index) {
-                    setState(() {
-                      _currentPageIndex = index;
-                    });
-                  },
-                  children: _surveyPages,
-                ),
+            child: PageView(
+              controller: _pageController,
+              physics: NeverScrollableScrollPhysics(),
+              onPageChanged: (index) {
+                setState(() {
+                  _currentPageIndex = index;
+                });
+              },
+              children: _surveyPages,
+            ),
           ),
           
           // 하단 버튼
           Container(
             padding: EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: isDarkMode ? Theme.of(context).scaffoldBackgroundColor : Colors.white,
+              color: Theme.of(context).scaffoldBackgroundColor,
               boxShadow: [
                 BoxShadow(
                   color: Colors.black.withOpacity(0.05),
@@ -275,8 +294,8 @@ class _SurveyScreenState extends State<SurveyScreen> with AutomaticKeepAliveClie
                     icon: Icon(Icons.arrow_back),
                     label: Text('이전'),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: isDarkMode ? Colors.grey[800] : Colors.grey[200],
-                      foregroundColor: isDarkMode ? Colors.white : Colors.black87,
+                      backgroundColor: Theme.of(context).colorScheme.secondary,
+                      foregroundColor: Theme.of(context).textTheme.bodyLarge?.color,
                       padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                     ),
                   )

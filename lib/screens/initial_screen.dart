@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 import '../screens/survey_screen.dart';
+import '../providers/survey_data_provider.dart';
+import 'package:provider/provider.dart';
 
 class InitialScreen extends StatefulWidget {
   @override
@@ -248,6 +250,28 @@ class _InitialScreenState extends State<InitialScreen> with SingleTickerProvider
                               foregroundColor: Colors.black54,
                             ),
                             child: const Text('나중에 할게요'),
+                          ),
+                          
+                          // 설문을 이미 마친 사용자를 위한 메인 화면 복귀 버튼
+                          Consumer<SurveyDataProvider>(
+                            builder: (context, surveyData, _) {
+                              if (surveyData.isSurveyCompleted) {
+                                return Padding(
+                                  padding: const EdgeInsets.only(top: 8.0),
+                                  child: TextButton.icon(
+                                    onPressed: () {
+                                      Navigator.of(context).pushNamedAndRemoveUntil('/home', (route) => false);
+                                    },
+                                    icon: Icon(Icons.arrow_back),
+                                    label: Text('메인 화면으로 돌아가기'),
+                                    style: TextButton.styleFrom(
+                                      foregroundColor: theme.colorScheme.primary,
+                                    ),
+                                  ),
+                                );
+                              }
+                              return SizedBox.shrink(); // 설문을 완료하지 않은 사용자에게는 표시하지 않음
+                            },
                           ),
                         ],
                       ),

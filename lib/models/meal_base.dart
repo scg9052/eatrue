@@ -199,7 +199,7 @@ class MealBase {
       id: DateTime.now().millisecondsSinceEpoch.toString(),
       name: name,
       description: description ?? '',
-      calories: calories ?? '',
+      calories: calories != null && calories!.isNotEmpty ? calories! : '칼로리 정보 없음',
       date: date,
       category: category,
       recipeJson: recipeJson,

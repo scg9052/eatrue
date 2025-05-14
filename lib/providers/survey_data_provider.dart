@@ -384,6 +384,7 @@ class SurveyDataProvider with ChangeNotifier {
           preferredSeasonings: _userData.preferredSeasonings,
           desiredCookingTime: _userData.preferredCookingTime ?? 30,
           desiredFoodCost: _userData.mealBudget ?? 10000,
+          mealPurpose: _userData.mealPurpose,
         );
       }
       
@@ -494,6 +495,27 @@ class SurveyDataProvider with ChangeNotifier {
     if (_userData.dislikedFoods.remove(food)) {
       updatePreferenceState(dislikeChanged: true);
     }
+  }
+
+  // 설문 완료 상태 전환 (완료 <-> 미완료)
+  Future<void> toggleSurveyCompletionStatus(bool isCompleted) async {
+    _isSurveyCompleted = isCompleted;
+    
+    // 파이어스토어에 업데이트
+    final User? user = _firebaseAuth.currentUser;
+    if (user != null) {
+      try {
+        await _firestore.collection('userSurveys').doc(user.uid).update({
+          'isSurveyCompleted': isCompleted,
+          'lastUpdated': FieldValue.serverTimestamp(),
+        });
+        print('설문 완료 상태가 업데이트되었습니다: $isCompleted (UID: ${user.uid})');
+      } catch (e) {
+        print('설문 완료 상태 업데이트 중 오류 발생: $e');
+      }
+    }
+    
+    notifyListeners();
   }
 }
 

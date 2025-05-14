@@ -8,12 +8,12 @@ import '../../utils/meal_type_utils.dart';
 void showMealAddDialog(BuildContext context, DateTime date, String mealType) {
   final mealProvider = Provider.of<MealProvider>(context, listen: false);
   
-  // 영어 카테고리 매핑
-  final String englishMealType = getEnglishMealCategory(mealType);
+  // 표준화된 카테고리 매핑
+  final String standardCategory = standardizeCategory(mealType, toKorean: false);
   
   // 생성된 메뉴가 있는지 확인
   final bool hasGeneratedMenus = mealProvider.generatedMenuByMealType.isNotEmpty &&
-                               mealProvider.generatedMenuByMealType.containsKey(englishMealType);
+                               mealProvider.generatedMenuByMealType.containsKey(standardCategory);
   
   showModalBottomSheet(
     context: context,
@@ -25,7 +25,7 @@ void showMealAddDialog(BuildContext context, DateTime date, String mealType) {
       return MealAddDialog(
         date: date,
         mealType: mealType,
-        englishMealType: englishMealType,
+        standardCategory: standardCategory,
         hasGeneratedMenus: hasGeneratedMenus,
       );
     },
@@ -35,14 +35,14 @@ void showMealAddDialog(BuildContext context, DateTime date, String mealType) {
 class MealAddDialog extends StatefulWidget {
   final DateTime date;
   final String mealType;
-  final String englishMealType;
+  final String standardCategory;
   final bool hasGeneratedMenus;
   
   const MealAddDialog({
     Key? key,
     required this.date,
     required this.mealType,
-    required this.englishMealType,
+    required this.standardCategory,
     required this.hasGeneratedMenus,
   }) : super(key: key);
   
@@ -147,9 +147,9 @@ class _MealAddDialogState extends State<MealAddDialog> {
           child: ListView.builder(
             shrinkWrap: true,
             physics: NeverScrollableScrollPhysics(),
-            itemCount: mealProvider.generatedMenuByMealType[widget.englishMealType]?.length ?? 0,
+            itemCount: mealProvider.generatedMenuByMealType[widget.standardCategory]?.length ?? 0,
             itemBuilder: (context, index) {
-              final menu = mealProvider.generatedMenuByMealType[widget.englishMealType]![index];
+              final menu = mealProvider.generatedMenuByMealType[widget.standardCategory]![index];
               return _buildRecommendedMenuItem(context, menu, mealProvider);
             },
           ),
@@ -162,7 +162,7 @@ class _MealAddDialogState extends State<MealAddDialog> {
   Widget _buildRecommendedMenuItem(BuildContext context, SimpleMenu menu, MealProvider mealProvider) {
     return ListTile(
       leading: Icon(Icons.fastfood, color: Theme.of(context).colorScheme.primary),
-      title: Text(translateMenuName(menu.dishName)),
+      title: Text(menu.dishName),
       subtitle: Text(menu.description, maxLines: 2, overflow: TextOverflow.ellipsis),
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
@@ -218,8 +218,14 @@ class _MealAddDialogState extends State<MealAddDialog> {
           constraints: BoxConstraints(),
           onPressed: onPressed,
         ),
-        SizedBox(height: 2),
-        Text(label, style: TextStyle(fontSize: 10)),
+        SizedBox(height: 4),
+        Container(
+          height: 20,
+          child: Text(
+            label, 
+            style: TextStyle(fontSize: 10),
+          ),
+        ),
       ],
     );
   }
@@ -265,7 +271,7 @@ class _MealAddDialogState extends State<MealAddDialog> {
       // 메뉴를 캘린더에 저장
       await mealProvider.addMealToCalendar(
         date: widget.date,
-        category: widget.englishMealType,
+        category: widget.standardCategory,
         name: menu.dishName,
         description: menu.description,
         recipeJson: menu.toJson(),
@@ -397,7 +403,7 @@ class _MealAddDialogState extends State<MealAddDialog> {
                 try {
                   await mealProvider.addMealToCalendar(
                     date: widget.date,
-                    category: widget.englishMealType,
+                    category: widget.standardCategory,
                     name: name,
                     description: description,
                     calories: calories,
