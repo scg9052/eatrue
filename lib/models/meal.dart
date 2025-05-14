@@ -13,7 +13,7 @@ class Meal {
     required this.id,
     required this.name,
     required this.description,
-    this.calories = '칼로리 정보 없음',
+    this.calories = '',
     required this.date,
     required this.category,
     this.recipeJson,
