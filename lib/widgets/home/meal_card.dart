@@ -180,14 +180,22 @@ class MealCard extends StatelessWidget {
   
   // 칼로리 텍스트 추출 메서드
   String _extractCaloriesText() {
+    // 디버깅 로그 추가
+    print('_extractCaloriesText 호출됨: ${meal.name}');
+    print('meal.calories: ${meal.calories}');
+    print('meal.recipeJson 존재 여부: ${meal.recipeJson != null}');
+    
     // 기본 칼로리 정보 (meal.calories)
     String baseCalories = meal.calories?.isNotEmpty == true 
-                        && meal.calories != '칼로리 정보 없음'
-                        ? meal.calories
-                        : '';
-                        
+                      && meal.calories != '칼로리 정보 없음'
+                      ? meal.calories
+                      : '';
+    
+    print('baseCalories 초기값: "$baseCalories"');
+                      
     // recipeJson에서 추가 칼로리 정보 확인
-    if (baseCalories.isEmpty && meal.recipeJson != null) {
+    if ((baseCalories.isEmpty || baseCalories == '칼로리 정보 없음') && meal.recipeJson != null) {
+      // 1. nutritional_information 확인
       if (meal.recipeJson!.containsKey('nutritional_information')) {
         final nutritionInfo = meal.recipeJson!['nutritional_information'];
         if (nutritionInfo is Map) {
@@ -196,6 +204,43 @@ class MealCard extends StatelessWidget {
           for (final key in caloriesKeys) {
             if (nutritionInfo.containsKey(key)) {
               baseCalories = nutritionInfo[key].toString();
+              print('nutritional_information에서 칼로리 찾음: $baseCalories');
+              break;
+            }
+          }
+        }
+      }
+      
+      // 2. nutrition 확인
+      if (baseCalories.isEmpty && meal.recipeJson!.containsKey('nutrition')) {
+        final nutrition = meal.recipeJson!['nutrition'];
+        if (nutrition is Map) {
+          final caloriesKeys = ['calories', 'calorie', 'Calories', '칼로리'];
+          for (final key in caloriesKeys) {
+            if (nutrition.containsKey(key)) {
+              baseCalories = nutrition[key].toString();
+              print('nutrition에서 칼로리 찾음: $baseCalories');
+              break;
+            }
+          }
+        }
+      }
+      
+      // 3. 직접 calories 키 확인
+      if (baseCalories.isEmpty && meal.recipeJson!.containsKey('calories')) {
+        baseCalories = meal.recipeJson!['calories'].toString();
+        print('최상위 calories에서 칼로리 찾음: $baseCalories');
+      }
+      
+      // 4. approximate_nutrients 확인
+      if (baseCalories.isEmpty && meal.recipeJson!.containsKey('approximate_nutrients')) {
+        final approxNutrients = meal.recipeJson!['approximate_nutrients'];
+        if (approxNutrients is Map) {
+          final caloriesKeys = ['calories', 'calorie', 'Calories', '칼로리', 'energy'];
+          for (final key in caloriesKeys) {
+            if (approxNutrients.containsKey(key)) {
+              baseCalories = approxNutrients[key].toString();
+              print('approximate_nutrients에서 칼로리 찾음: $baseCalories');
               break;
             }
           }
@@ -204,9 +249,21 @@ class MealCard extends StatelessWidget {
     }
     
     // 칼로리 정보 포맷팅
-    if (baseCalories.isNotEmpty) {
+    if (baseCalories.isNotEmpty && baseCalories != '칼로리 정보 없음') {
+      // 숫자만 있는지 확인
+      bool hasNonDigit = false;
+      for (int i = 0; i < baseCalories.length; i++) {
+        if (!(baseCalories[i] == '.' || baseCalories[i] == ',' || 
+              baseCalories[i] == '-' || baseCalories[i] == '~' || 
+              baseCalories[i].codeUnitAt(0) >= 48 && baseCalories[i].codeUnitAt(0) <= 57)) {
+          hasNonDigit = true;
+          break;
+        }
+      }
+      
       // kcal 표시 추가
-      if (!baseCalories.toLowerCase().contains('kcal')) {
+      if (!baseCalories.toLowerCase().contains('kcal') && 
+          !baseCalories.toLowerCase().contains('칼로리')) {
         return '$baseCalories kcal';
       } else {
         return baseCalories;
