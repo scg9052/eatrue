@@ -3,13 +3,26 @@ import 'package:provider/provider.dart';
 import '../../providers/meal_provider.dart';
 import '../../models/simple_menu.dart';
 import '../../utils/meal_type_utils.dart';
+import '../../l10n/app_localizations.dart';
 
 /// 식사 추가 다이얼로그 표시
 void showMealAddDialog(BuildContext context, DateTime date, String mealType) {
   final mealProvider = Provider.of<MealProvider>(context, listen: false);
+  final localization = AppLocalizations.of(context);
   
   // 표준화된 카테고리 매핑
-  final String standardCategory = standardizeCategory(mealType, toKorean: false);
+  String standardCategory;
+  
+  // mealType을 영어 카테고리로 변환 시도
+  if (mealType == localization.breakfast || 
+      mealType == localization.lunch || 
+      mealType == localization.dinner || 
+      mealType == localization.snack) {
+    standardCategory = getEnglishCategory(mealType, context);
+  } else {
+    // 기존 방식으로 폴백
+    standardCategory = standardizeCategory(mealType, toKorean: false);
+  }
   
   // 생성된 메뉴가 있는지 확인
   final bool hasGeneratedMenus = mealProvider.generatedMenuByMealType.isNotEmpty &&
@@ -54,6 +67,7 @@ class _MealAddDialogState extends State<MealAddDialog> {
   @override
   Widget build(BuildContext context) {
     final mealProvider = Provider.of<MealProvider>(context);
+    final localization = AppLocalizations.of(context);
     
     return Container(
       padding: EdgeInsets.all(16),
@@ -74,7 +88,7 @@ class _MealAddDialogState extends State<MealAddDialog> {
           // 식단 베이스 섹션 (추가 예정)
           SizedBox(height: 16),
           Text(
-            '식단 베이스에서 추가',
+            localization.selectFromMealBase,
             style: TextStyle(
               fontWeight: FontWeight.bold,
               fontSize: 16,
@@ -82,13 +96,13 @@ class _MealAddDialogState extends State<MealAddDialog> {
           ),
           SizedBox(height: 8),
           // 식단 베이스 목록은 MealBaseList 위젯으로 분리 예정
-          Text('식단 베이스에서 선택 기능 (추가 예정)'),
+          Text(localization.isKorean() ? '식단 베이스에서 선택 기능 (추가 예정)' : 'Select from meal base (coming soon)'),
           
           // 직접 추가 섹션
           SizedBox(height: 16),
           ElevatedButton.icon(
             icon: Icon(Icons.add),
-            label: Text('새 식단 직접 입력'),
+            label: Text(localization.addMealManually),
             onPressed: () {
               // 직접 입력 다이얼로그 표시
               _showCustomMealDialog(context);
@@ -105,11 +119,21 @@ class _MealAddDialogState extends State<MealAddDialog> {
   
   // 헤더 위젯
   Widget _buildHeader(BuildContext context) {
+    final localization = AppLocalizations.of(context);
+    
+    // 표시할 카테고리 이름 (지역화)
+    String displayCategory;
+    if (['breakfast', 'lunch', 'dinner', 'snack', 'snacks'].contains(widget.standardCategory.toLowerCase())) {
+      displayCategory = getLocalizedCategory(widget.standardCategory, context);
+    } else {
+      displayCategory = widget.mealType; // 기존 이름 사용
+    }
+    
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         Text(
-          '${widget.mealType} 식사 추가',
+          '$displayCategory ${localization.addMealTitle}',
           style: TextStyle(
             fontSize: 18,
             fontWeight: FontWeight.bold,
@@ -125,13 +149,14 @@ class _MealAddDialogState extends State<MealAddDialog> {
   
   // 추천 메뉴 섹션
   Widget _buildRecommendedMenuSection(MealProvider mealProvider) {
+    final localization = AppLocalizations.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
           padding: EdgeInsets.only(bottom: 8),
           child: Text(
-            '추천 메뉴',
+            localization.recommendedMenus,
             style: TextStyle(
               fontWeight: FontWeight.bold, 
               color: Theme.of(context).colorScheme.primary
@@ -160,6 +185,7 @@ class _MealAddDialogState extends State<MealAddDialog> {
   
   // 추천 메뉴 아이템
   Widget _buildRecommendedMenuItem(BuildContext context, SimpleMenu menu, MealProvider mealProvider) {
+    final localization = AppLocalizations.of(context);
     return ListTile(
       leading: Icon(Icons.fastfood, color: Theme.of(context).colorScheme.primary),
       title: Text(menu.dishName),
@@ -170,7 +196,7 @@ class _MealAddDialogState extends State<MealAddDialog> {
           // 식단 베이스에 저장 버튼
           _buildActionButton(
             icon: Icons.save_alt,
-            label: '저장',
+            label: localization.saveButton,
             color: Colors.green,
             onPressed: () async {
               await _saveToMealBase(context, menu, mealProvider);
@@ -180,7 +206,7 @@ class _MealAddDialogState extends State<MealAddDialog> {
           // 기각 버튼
           _buildActionButton(
             icon: Icons.thumb_down,
-            label: '기각',
+            label: localization.rejectButton,
             color: Colors.red[400]!,
             onPressed: () {
               _showRejectMenuDialog(context, menu);
@@ -190,7 +216,7 @@ class _MealAddDialogState extends State<MealAddDialog> {
           // 캘린더에 추가 버튼
           _buildActionButton(
             icon: Icons.add_circle_outline,
-            label: '추가',
+            label: localization.addButton,
             color: Theme.of(context).colorScheme.primary,
             onPressed: () async {
               await _addToCalendar(context, menu, mealProvider);
@@ -232,17 +258,20 @@ class _MealAddDialogState extends State<MealAddDialog> {
   
   // 식단 베이스에 저장
   Future<void> _saveToMealBase(BuildContext context, SimpleMenu menu, MealProvider mealProvider) async {
+    final localization = AppLocalizations.of(context);
     try {
       // 메뉴를 식단 베이스에 저장
       await mealProvider.saveSimpleMenuToMealBase(
         menu, 
         widget.mealType, // 한글 카테고리 사용
-        ['추천 메뉴'], // 기본 태그
+        [localization.isKorean() ? '추천 메뉴' : 'Recommended Menu'], // 기본 태그
       );
       
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('${menu.dishName}이(가) 식단 베이스에 저장되었습니다'),
+          content: Text(localization.isKorean() 
+              ? '${menu.dishName}${localization.mealSavedMessage}' 
+              : '${menu.dishName}${localization.mealSavedMessage}'),
           backgroundColor: Colors.green,
           behavior: SnackBarBehavior.floating,
         ),
@@ -250,7 +279,7 @@ class _MealAddDialogState extends State<MealAddDialog> {
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('저장 실패: $e'),
+          content: Text('${localization.mealSaveErrorMessage}$e'),
           backgroundColor: Colors.red,
           behavior: SnackBarBehavior.floating,
         ),
@@ -260,6 +289,8 @@ class _MealAddDialogState extends State<MealAddDialog> {
   
   // 캘린더에 추가
   Future<void> _addToCalendar(BuildContext context, SimpleMenu menu, MealProvider mealProvider) async {
+    final localization = AppLocalizations.of(context);
+    
     // 로딩 다이얼로그 표시
     showDialog(
       context: context,
@@ -283,7 +314,7 @@ class _MealAddDialogState extends State<MealAddDialog> {
       // 성공 메시지 표시
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('${menu.dishName}이(가) ${widget.mealType}으로 추가되었습니다'),
+          content: Text('${menu.dishName}${localization.addSuccess}'),
           backgroundColor: Colors.green,
           behavior: SnackBarBehavior.floating,
         ),
@@ -298,7 +329,7 @@ class _MealAddDialogState extends State<MealAddDialog> {
       // 에러 메시지 표시
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('추가 실패: $e'),
+          content: Text('${localization.addFail}$e'),
           backgroundColor: Colors.red,
           behavior: SnackBarBehavior.floating,
         ),
@@ -308,18 +339,20 @@ class _MealAddDialogState extends State<MealAddDialog> {
   
   // 메뉴 기각 다이얼로그
   void _showRejectMenuDialog(BuildContext context, SimpleMenu menu) {
+    final localization = AppLocalizations.of(context);
+    
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('메뉴 기각'),
-        content: Text('${menu.dishName} 메뉴를 기각하시겠습니까?\n메뉴를 기각하면 다시 추천받을 수 없습니다.'),
+        title: Text(localization.rejectMenuTitle),
+        content: Text('${menu.dishName} ${localization.rejectMenuConfirm}'),
         actions: [
           TextButton(
-            child: Text('취소'),
+            child: Text(localization.cancelButton),
             onPressed: () => Navigator.pop(context),
           ),
           TextButton(
-            child: Text('기각', style: TextStyle(color: Colors.red)),
+            child: Text(localization.rejectButton, style: TextStyle(color: Colors.red)),
             onPressed: () {
               // 기각 로직 추가
               Navigator.pop(context); // 다이얼로그 닫기
@@ -327,7 +360,7 @@ class _MealAddDialogState extends State<MealAddDialog> {
               // 사용자에게 피드백 제공
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
-                  content: Text('${menu.dishName} 메뉴가 기각되었습니다.'),
+                  content: Text('${menu.dishName} ${localization.rejectMenuSuccess}'),
                   backgroundColor: Colors.orange,
                   behavior: SnackBarBehavior.floating,
                 ),
@@ -342,6 +375,7 @@ class _MealAddDialogState extends State<MealAddDialog> {
   // 직접 입력 다이얼로그
   void _showCustomMealDialog(BuildContext context) {
     final formKey = GlobalKey<FormState>();
+    final localization = AppLocalizations.of(context);
     String name = '';
     String description = '';
     String calories = '';
@@ -349,7 +383,7 @@ class _MealAddDialogState extends State<MealAddDialog> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('직접 식단 추가'),
+        title: Text(localization.addMealManuallyTitle),
         content: Form(
           key: formKey,
           child: SingleChildScrollView(
@@ -358,26 +392,26 @@ class _MealAddDialogState extends State<MealAddDialog> {
               children: [
                 TextFormField(
                   decoration: InputDecoration(
-                    labelText: '식단 이름',
+                    labelText: localization.mealNameLabel,
                     border: OutlineInputBorder(),
                   ),
-                  validator: (value) => value == null || value.isEmpty ? '식단 이름을 입력하세요' : null,
+                  validator: (value) => value == null || value.isEmpty ? localization.mealNameValidation : null,
                   onSaved: (value) => name = value!,
                 ),
                 SizedBox(height: 12),
                 TextFormField(
                   decoration: InputDecoration(
-                    labelText: '설명',
+                    labelText: localization.descriptionLabel,
                     border: OutlineInputBorder(),
                   ),
                   maxLines: 3,
-                  validator: (value) => value == null || value.isEmpty ? '설명을 입력하세요' : null,
+                  validator: (value) => value == null || value.isEmpty ? localization.descriptionValidation : null,
                   onSaved: (value) => description = value!,
                 ),
                 SizedBox(height: 12),
                 TextFormField(
                   decoration: InputDecoration(
-                    labelText: '칼로리 (kcal)',
+                    labelText: localization.caloriesLabel,
                     border: OutlineInputBorder(),
                   ),
                   keyboardType: TextInputType.number,
@@ -389,11 +423,11 @@ class _MealAddDialogState extends State<MealAddDialog> {
         ),
         actions: [
           TextButton(
-            child: Text('취소'),
+            child: Text(localization.cancelButton),
             onPressed: () => Navigator.pop(context),
           ),
           ElevatedButton(
-            child: Text('추가'),
+            child: Text(localization.addButton),
             onPressed: () async {
               if (formKey.currentState!.validate()) {
                 formKey.currentState!.save();
@@ -414,7 +448,7 @@ class _MealAddDialogState extends State<MealAddDialog> {
                   
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
-                      content: Text('$name이(가) ${widget.mealType}으로 추가되었습니다'),
+                      content: Text('$name${localization.addSuccess}'),
                       backgroundColor: Colors.green,
                       behavior: SnackBarBehavior.floating,
                     ),
@@ -422,7 +456,7 @@ class _MealAddDialogState extends State<MealAddDialog> {
                 } catch (e) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
-                      content: Text('추가 실패: $e'),
+                      content: Text('${localization.addFail}$e'),
                       backgroundColor: Colors.red,
                       behavior: SnackBarBehavior.floating,
                     ),

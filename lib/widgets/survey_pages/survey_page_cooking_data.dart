@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../providers/survey_data_provider.dart';
 import '../../models/user_data.dart';
+import '../../l10n/app_localizations.dart';
 
 class SurveyPageCookingData extends StatefulWidget {
   final Function(List<String>, int?) onUpdate;
@@ -22,7 +23,7 @@ class _SurveyPageCookingDataState extends State<SurveyPageCookingData> {
   final TextEditingController _preferredTimeController = TextEditingController();
   final TextEditingController _cookingToolController = TextEditingController();
 
-  List<String> _commonCookingTools = ['상관없음','전자레인지', '가스레인지', '인덕션', '에어프라이어', '오븐', '전기밥솥', '냄비', '프라이팬', '칼', '도마', '믹서기', '커피포트'];
+  late List<String> _commonCookingTools;
   List<String> _selectedCookingTools = [];
 
   @override
@@ -35,6 +36,17 @@ class _SurveyPageCookingDataState extends State<SurveyPageCookingData> {
     if (existingData.preferredCookingTime != null) {
       _preferredTimeController.text = existingData.preferredCookingTime.toString();
     }
+  }
+  
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final localization = AppLocalizations.of(context);
+    
+    // 지역화된 요리 도구 목록
+    _commonCookingTools = localization.isKorean() ? 
+      ['상관없음','전자레인지', '가스레인지', '인덕션', '에어프라이어', '오븐', '전기밥솥', '냄비', '프라이팬', '칼', '도마', '믹서기', '커피포트'] :
+      ['Any','Microwave', 'Gas Stove', 'Induction', 'Air Fryer', 'Oven', 'Rice Cooker', 'Pot', 'Pan', 'Knife', 'Cutting Board', 'Blender', 'Kettle'];
   }
 
   @override
@@ -152,11 +164,12 @@ class _SurveyPageCookingDataState extends State<SurveyPageCookingData> {
 
   Widget _buildCookingToolSelector() {
     final theme = Theme.of(context);
+    final localization = AppLocalizations.of(context);
     
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildSectionLabel("사용 가능한 조리 도구", isRequired: true),
+        _buildSectionLabel(localization.cookingToolsLabel, isRequired: true),
         Container(
           width: double.infinity,
           padding: EdgeInsets.all(16),
@@ -176,7 +189,7 @@ class _SurveyPageCookingDataState extends State<SurveyPageCookingData> {
                   _selectedCookingTools.contains(tool),
                   () {
                     setState(() {
-                      if (tool == '상관없음') {
+                      if (tool == _commonCookingTools[0]) { // 상관없음 또는 Any
                         if (!_selectedCookingTools.contains(tool)) { 
                           _selectedCookingTools.clear(); 
                           _selectedCookingTools.add(tool); 
@@ -184,7 +197,7 @@ class _SurveyPageCookingDataState extends State<SurveyPageCookingData> {
                           _selectedCookingTools.remove(tool);
                         }
                       } else {
-                        _selectedCookingTools.remove('상관없음');
+                        _selectedCookingTools.remove(_commonCookingTools[0]);
                         if (_selectedCookingTools.contains(tool)) {
                           _selectedCookingTools.remove(tool);
                         } else {
@@ -198,90 +211,95 @@ class _SurveyPageCookingDataState extends State<SurveyPageCookingData> {
                 )).toList(),
               ),
               SizedBox(height: 16),
-              Text(
-                "기타 조리 도구",
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                  color: theme.textTheme.bodyMedium?.color,
-                ),
-              ),
-              SizedBox(height: 8),
               Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Expanded(
                     child: TextField(
                       controller: _cookingToolController,
-                      decoration: _inputDecoration(
-                        '도구명 입력', 
-                        hint: '기타 조리 도구가 있다면 입력하세요', 
-                        icon: Icons.add_circle_outline,
+                      decoration: InputDecoration(
+                        hintText: localization.isKorean() ? '기타 조리도구 입력' : 'Enter other cooking tools',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                       ),
-                      onSubmitted: (value) => _addCustomTool(value),
                     ),
                   ),
-                  SizedBox(width: 10),
+                  SizedBox(width: 8),
                   ElevatedButton(
-                    onPressed: () => _addCustomTool(_cookingToolController.text),
-                    child: Icon(Icons.add, size: 24),
+                    onPressed: () {
+                      final value = _cookingToolController.text.trim();
+                      if (value.isNotEmpty) {
+                        setState(() {
+                          if (!_selectedCookingTools.contains(value)) {
+                            _selectedCookingTools.add(value);
+                          }
+                          _cookingToolController.clear();
+                          _updateParent();
+                        });
+                      }
+                    },
+                    child: Text(localization.isKorean() ? '추가' : 'Add'),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Color(0xFF5E35B1),
-                      minimumSize: Size(60, 52), 
-                      padding: EdgeInsets.zero, 
+                      padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12)
+                        borderRadius: BorderRadius.circular(12),
                       ),
-                      elevation: 0,
                     ),
                   ),
                 ],
               ),
-              SizedBox(height: 10),
-              if (_selectedCookingTools.any((tool) => !_commonCookingTools.contains(tool))) ...[
-                SizedBox(height: 8),
-                Text(
-                  "추가한 조리 도구",
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                    color: theme.textTheme.bodyMedium?.color,
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+  
+  Widget _buildPreferredCookingTime() {
+    final theme = Theme.of(context);
+    final localization = AppLocalizations.of(context);
+    
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildSectionLabel(localization.cookingTimeLabel, isRequired: true),
+        Container(
+          width: double.infinity,
+          padding: EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: theme.inputDecorationTheme.fillColor,
+            borderRadius: BorderRadius.circular(12.0),
+            border: Border.all(color: theme.dividerColor),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              TextField(
+                controller: _preferredTimeController,
+                decoration: InputDecoration(
+                  hintText: localization.isKorean() ? '조리 시간 입력 (분)' : 'Enter cooking time (minutes)',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
                   ),
+                  contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  suffixText: localization.minutes,
                 ),
-                SizedBox(height: 8),
-                Wrap(
-                  spacing: 8.0, 
-                  runSpacing: 8.0,
-                  children: _selectedCookingTools
-                    .where((tool) => !_commonCookingTools.contains(tool))
-                    .map((tool) => Chip(
-                      label: Text(
-                        tool, 
-                        style: TextStyle(
-                          color: Color(0xFF5E35B1),
-                          fontWeight: FontWeight.w500
-                        )
-                      ),
-                      avatar: Icon(Icons.build_circle_outlined, size: 18, color: Color(0xFF5E35B1)),
-                      onDeleted: () { 
-                        setState(() { 
-                          _selectedCookingTools.remove(tool); 
-                          _updateParent(); 
-                        }); 
-                      },
-                      deleteIcon: Icon(Icons.close, size: 18), 
-                      deleteIconColor: Colors.red[400],
-                      backgroundColor: Color(0xFF5E35B1).withOpacity(0.1), 
-                      padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      elevation: 0,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(20),
-                        side: BorderSide(color: Color(0xFF5E35B1).withOpacity(0.3), width: 1)
-                      ),
-                    )
-                  ).toList(),
+                keyboardType: TextInputType.number,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                onChanged: (_) => _updateParent(),
+              ),
+              SizedBox(height: 8),
+              Text(
+                localization.isKorean() 
+                    ? '선호하는 최대 조리 시간을 분 단위로 입력해주세요.' 
+                    : 'Enter your preferred maximum cooking time in minutes.',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontStyle: FontStyle.italic,
+                  color: theme.textTheme.bodySmall?.color,
                 ),
-              ],
+              ),
             ],
           ),
         ),
@@ -289,33 +307,12 @@ class _SurveyPageCookingDataState extends State<SurveyPageCookingData> {
     );
   }
 
-  void _addCustomTool(String value) {
-    final toolName = value.trim();
-    if (toolName.isNotEmpty && !_selectedCookingTools.contains(toolName)) {
-      setState(() {
-        _selectedCookingTools.remove('상관없음');
-        _selectedCookingTools.add(toolName);
-        _cookingToolController.clear();
-        _updateParent();
-      });
-    } else if (toolName.isNotEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text("'$toolName'은(는) 이미 목록에 있습니다."), 
-          duration: Duration(seconds: 2), 
-          backgroundColor: Colors.orange,
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-      _cookingToolController.clear();
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final screenSize = MediaQuery.of(context).size;
     final isSmallScreen = screenSize.height < 700;
+    final localization = AppLocalizations.of(context);
     
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -336,7 +333,7 @@ class _SurveyPageCookingDataState extends State<SurveyPageCookingData> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                '조리 환경 정보',
+                localization.cookingDataTitle,
                 style: TextStyle(
                   fontSize: isSmallScreen ? 18 : 20,
                   fontWeight: FontWeight.bold,
@@ -345,7 +342,9 @@ class _SurveyPageCookingDataState extends State<SurveyPageCookingData> {
               ),
               SizedBox(height: 8),
               Text(
-                '조리 환경과 가능한 시간에 맞는 레시피를 추천해 드립니다.',
+                localization.isKorean() 
+                    ? '조리 환경 정보를 입력하시면 당신의 상황에 맞는 레시피를 추천해 드립니다.'
+                    : 'Enter your cooking environment information to get recipes that fit your situation.',
                 style: TextStyle(
                   fontSize: isSmallScreen ? 13 : 14,
                   color: theme.colorScheme.onSurface.withOpacity(0.7),
@@ -355,62 +354,37 @@ class _SurveyPageCookingDataState extends State<SurveyPageCookingData> {
           ),
         ),
         
-        // 조리 도구 선택기
+        // 조리 도구 선택
         _buildCookingToolSelector(),
         
         SizedBox(height: 24),
         
         // 선호 조리 시간
-        _buildSectionLabel('선호하는 조리 시간 (분)', isRequired: true),
-        TextField(
-          controller: _preferredTimeController,
-          decoration: _inputDecoration(
-            '조리 시간', 
-            hint: '예: 30 (숫자만 입력)', 
-            icon: Icons.timer,
-            suffixIcon: Padding(
-              padding: EdgeInsets.only(right: 12),
-              child: Text(
-                '분', 
-                style: TextStyle(
-                  fontSize: 16, 
-                  color: Colors.grey[600]
-                )
-              ),
-            ),
-            isRequired: true,
-          ),
-          keyboardType: TextInputType.number,
-          inputFormatters: [
-            FilteringTextInputFormatter.digitsOnly,
-            LengthLimitingTextInputFormatter(3)
-          ],
-          onChanged: (_) => _updateParent(),
-        ),
+        _buildPreferredCookingTime(),
         
         SizedBox(height: 24),
         
-        // 조리 환경 팁
+        // 조리 팁
         Container(
           width: double.infinity,
           padding: EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: Colors.blueGrey.withOpacity(0.1),
+            color: Colors.amber.withOpacity(0.1),
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.blueGrey.withOpacity(0.3)),
+            border: Border.all(color: Colors.amber.withOpacity(0.3)),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
                 children: [
-                  Icon(Icons.lightbulb_outline, color: Colors.blueGrey[600], size: 20),
+                  Icon(Icons.lightbulb_outline, color: Colors.amber[700], size: 20),
                   SizedBox(width: 8),
                   Text(
-                    '조리 환경 팁',
+                    localization.isKorean() ? '조리 환경 팁' : 'Cooking Environment Tips',
                     style: TextStyle(
                       fontWeight: FontWeight.bold,
-                      color: Colors.blueGrey[700],
+                      color: Colors.amber[800],
                       fontSize: 15,
                     ),
                   ),
@@ -418,13 +392,17 @@ class _SurveyPageCookingDataState extends State<SurveyPageCookingData> {
               ),
               SizedBox(height: 8),
               Text(
-                '• 현재 사용 가능한 조리 도구를 모두 선택해주세요.',
-                style: TextStyle(fontSize: 13, color: Colors.blueGrey[800]),
+                localization.isKorean()
+                    ? '• 가지고 있는 조리 도구를 선택하면 사용 가능한 조리법의 레시피를 추천받을 수 있습니다.'
+                    : '• Selecting the cooking tools you have will help recommend recipes with available cooking methods.',
+                style: TextStyle(fontSize: 13, color: Colors.amber[900]),
               ),
               SizedBox(height: 4),
               Text(
-                '• 선호하는 조리 시간은 한 번에 요리하는 데 투자할 수 있는 시간을 의미합니다.',
-                style: TextStyle(fontSize: 13, color: Colors.blueGrey[800]),
+                localization.isKorean()
+                    ? '• 선호하는 조리 시간을 입력하면 해당 시간 내에 완성할 수 있는 레시피를 우선적으로 추천해 드립니다.'
+                    : '• Entering your preferred cooking time will prioritize recipes that can be completed within that time.',
+                style: TextStyle(fontSize: 13, color: Colors.amber[900]),
               ),
             ],
           ),

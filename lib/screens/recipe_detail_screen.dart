@@ -6,6 +6,7 @@ import '../models/recipe.dart';
 // import '../models/ingredient.dart'; // Recipe 모델에서 직접 사용하지 않으므로 주석 처리 또는 제거
 import '../providers/meal_provider.dart';
 import '../widgets/dialogs/save_to_meal_base_dialog.dart'; // 식단 베이스 저장 다이얼로그 추가
+import '../l10n/app_localizations.dart';
 
 class RecipeDetailScreen extends StatefulWidget {
   final Recipe recipe;
@@ -56,6 +57,7 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
     final textTheme = Theme.of(context).textTheme;
     final colorScheme = Theme.of(context).colorScheme;
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    final localization = AppLocalizations.of(context);
     
     print('레시피 디테일 화면 빌드 - 다크모드: $isDarkMode');
     
@@ -71,13 +73,13 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('레시피 상세'),
+        title: Text(localization.recipeDetailTitle),
         elevation: 0,
         actions: [
           // 식단 베이스 저장 버튼 추가 (추후 구현)
           IconButton(
             icon: Icon(Icons.bookmark_border),
-            tooltip: '식단 베이스에 저장',
+            tooltip: localization.saveToMealBase,
             onPressed: () => _saveToMealBase(context),
           ),
         ],
@@ -100,7 +102,7 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
             _buildIngredientsSection(context),
             
             // 조리 순서 섹션
-            _buildSectionTitle('조리 순서', Icons.restaurant, context),
+            _buildSectionTitle(localization.cookingInstructions, Icons.restaurant, context),
             _buildCookingInstructionsCard(context),
             
             SizedBox(height: 24),
@@ -120,6 +122,7 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
     final textTheme = Theme.of(context).textTheme;
     final colorScheme = Theme.of(context).colorScheme;
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    final localization = AppLocalizations.of(context);
     
     return Container(
       padding: EdgeInsets.all(16),
@@ -148,7 +151,7 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
           // 평점 표시
           Row(
             children: [
-              Text('평점: ', style: textTheme.bodyLarge),
+              Text(localization.rating, style: textTheme.bodyLarge),
               _buildRatingStars(),
             ],
           ),
@@ -161,12 +164,12 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
             children: [
               _buildInfoItem(
                 Icons.access_time, 
-                '${widget.recipe.cookingTimeMinutes ?? '30'}분',
+                '${widget.recipe.cookingTimeMinutes ?? '30'}${localization.cookingTime}',
                 context
               ),
               _buildInfoItem(
                 Icons.trending_up, 
-                '난이도: ${_getDifficulty(widget.recipe.difficulty)}',
+                '${localization.difficultyLevel}${_getDifficulty(widget.recipe.difficulty)}',
                 context
               ),
             ],
@@ -179,6 +182,7 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
   // 칼로리 정보 표시 위젯
   Widget _buildCaloriesInfo(BuildContext context) {
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    final localization = AppLocalizations.of(context);
     
     // 영양 정보에서 칼로리 찾기
     if (widget.recipe.nutritionalInformation != null) {
@@ -209,7 +213,7 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
             ),
             SizedBox(width: 8),
             Text(
-              '칼로리: $caloriesValue',
+              '${localization.calories}: $caloriesValue',
               style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.w500,
@@ -223,7 +227,7 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
     
     // 대체 텍스트
     return Text(
-      '건강한 식단',
+      localization.healthyMeal,
       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
         color: isDarkMode ? Colors.grey[300] : Colors.grey[700],
       ),
@@ -241,6 +245,7 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
     final textTheme = Theme.of(context).textTheme;
     final colorScheme = Theme.of(context).colorScheme;
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    final localization = AppLocalizations.of(context);
     
     // 영양 정보 필터링 - 칼로리 정보는 위에서 이미 표시하므로 제외
     final filteredNutritionInfo = Map<String, dynamic>.from(widget.recipe.nutritionalInformation!);
@@ -248,14 +253,14 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
     
     // 중요 영양소 순서와 번역
     final importantNutrients = {
-      'protein': '단백질',
-      'carbohydrates': '탄수화물', 
-      'carbs': '탄수화물',
-      'fats': '지방',
-      'fat': '지방',
-      'fiber': '식이섬유',
-      'sodium': '나트륨',
-      'sugar': '당류',
+      'protein': localization.protein,
+      'carbohydrates': localization.carbohydrates, 
+      'carbs': localization.carbohydrates,
+      'fats': localization.fats,
+      'fat': localization.fats,
+      'fiber': localization.fiber,
+      'sodium': localization.sodium,
+      'sugar': localization.sugar,
     };
     
     // 중요 영양소 위젯 목록 생성
@@ -293,7 +298,7 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildSectionTitle('영양 정보', Icons.monitor_heart_outlined, context),
+        _buildSectionTitle(localization.nutritionalInfo, Icons.monitor_heart_outlined, context),
         Card(
           elevation: 1, 
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), 
@@ -342,19 +347,21 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
 
   // 재료 섹션 위젯
   Widget _buildIngredientsSection(BuildContext context) {
+    final localization = AppLocalizations.of(context);
+    
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         // 주재료 섹션
         if (widget.recipe.ingredients != null && widget.recipe.ingredients!.isNotEmpty) ...[
-          _buildSectionTitle('준비재료', Icons.shopping_cart, context),
+          _buildSectionTitle(localization.ingredients, Icons.shopping_cart, context),
           _buildMapIngredientListCard(widget.recipe.ingredients!, "주재료", context),
           SizedBox(height: 16),
         ],
         
         // 양념 섹션
         if (widget.recipe.seasonings != null && widget.recipe.seasonings!.isNotEmpty) ...[
-          _buildSectionTitle('양념', Icons.spa_outlined, context),
+          _buildSectionTitle(localization.seasonings, Icons.spa_outlined, context),
           _buildMapIngredientListCard(widget.recipe.seasonings!, "양념", context),
           SizedBox(height: 24),
         ],
@@ -362,7 +369,7 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
         // 재료가 없는 경우 기본 재료 표시
         if ((widget.recipe.ingredients == null || widget.recipe.ingredients!.isEmpty) &&
             (widget.recipe.seasonings == null || widget.recipe.seasonings!.isEmpty)) ...[
-          _buildSectionTitle('준비재료', Icons.shopping_cart, context),
+          _buildSectionTitle(localization.ingredients, Icons.shopping_cart, context),
           _buildDefaultIngredientsCard(context),
           SizedBox(height: 24),
         ],
@@ -506,11 +513,12 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
   // 레시피 평가 섹션 위젯
   Widget _buildRatingSection(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
+    final localization = AppLocalizations.of(context);
     
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildSectionTitle('레시피 평가하기', Icons.thumb_up_alt_outlined, context),
+        _buildSectionTitle(localization.rateRecipe, Icons.thumb_up_alt_outlined, context),
         Card(
           elevation: 1, 
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), 
@@ -518,7 +526,7 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
             padding: const EdgeInsets.all(20.0), 
             child: Column(
               children: [
-                Text('이 레시피, 어떠셨나요? 별점으로 알려주세요!', style: textTheme.titleMedium),
+                Text(localization.howWasRecipe, style: textTheme.titleMedium),
                 SizedBox(height: 12),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center, 
@@ -537,12 +545,12 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
                 SizedBox(height: 16),
                 ElevatedButton.icon(
                   icon: Icon(Icons.send_outlined), 
-                  label: Text('평점 제출하기'), 
+                  label: Text(localization.submitRating), 
                   onPressed: _currentRating > 0 ? () { 
                     Provider.of<MealProvider>(context, listen: false).rateRecipe(widget.recipe.id, _currentRating);
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
-                        content: Text('소중한 평점 감사합니다: ${_currentRating.toStringAsFixed(1)}점'), 
+                        content: Text('${localization.thankYouRating}${_currentRating.toStringAsFixed(1)}점'), 
                         backgroundColor: Colors.green, 
                         behavior: SnackBarBehavior.floating, 
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)), 
@@ -636,19 +644,21 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
   
   // 영양성분 키 번역
   String _translateNutritionKey(String key) {
+    final localization = AppLocalizations.of(context);
+    
     final translationMap = {
-      'calories': '칼로리',
-      'protein': '단백질',
-      'carbohydrates': '탄수화물',
-      'carbs': '탄수화물',
-      'fats': '지방',
-      'fat': '지방',
-      'sodium': '나트륨',
-      'sugar': '당류',
-      'fiber': '식이섬유',
-      'vitamins': '비타민',
-      'minerals': '미네랄',
-      'cholesterol': '콜레스테롤',
+      'calories': localization.calories,
+      'protein': localization.protein,
+      'carbohydrates': localization.carbohydrates,
+      'carbs': localization.carbohydrates,
+      'fats': localization.fats,
+      'fat': localization.fats,
+      'sodium': localization.sodium,
+      'sugar': localization.sugar,
+      'fiber': localization.fiber,
+      'vitamins': localization.vitamins,
+      'minerals': localization.minerals,
+      'cholesterol': localization.cholesterol,
     };
     
     final lowercaseKey = key.toLowerCase();
@@ -681,17 +691,19 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
 
   // 난이도 텍스트 변환
   String _getDifficulty(String? difficulty) {
-    if (difficulty == null) return '보통';
+    final localization = AppLocalizations.of(context);
+    
+    if (difficulty == null) return localization.difficultyMedium;
     
     switch (difficulty.toLowerCase()) {
       case 'easy':
-        return '쉬움';
+        return localization.difficultyEasy;
       case 'medium':
       case 'normal':
-        return '보통';
+        return localization.difficultyMedium;
       case 'hard':
       case 'difficult':
-        return '어려움';
+        return localization.difficultyHard;
       default:
         return difficulty;
     }

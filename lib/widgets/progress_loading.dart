@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../l10n/app_localizations.dart';
 
 class ProgressLoadingBar extends StatelessWidget {
   final String message;
@@ -15,6 +16,7 @@ class ProgressLoadingBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final themeColor = color ?? Theme.of(context).colorScheme.primary;
+    final localization = AppLocalizations.of(context);
     
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -47,7 +49,7 @@ class ProgressLoadingBar extends StatelessWidget {
                     ),
                     SizedBox(height: 8),
                     Text(
-                      '${(progress! * 100).toInt()}% 완료',
+                      '${(progress! * 100).toInt()}% ${localization.menuGenerationProgress}',
                       style: TextStyle(
                         fontSize: 12,
                         color: Colors.grey[600],

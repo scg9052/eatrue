@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 import '../screens/survey_screen.dart';
 import '../providers/survey_data_provider.dart';
+import '../providers/language_provider.dart';
+import '../l10n/app_localizations.dart';
 import 'package:provider/provider.dart';
 
 class InitialScreen extends StatefulWidget {
@@ -51,6 +53,8 @@ class _InitialScreenState extends State<InitialScreen> with SingleTickerProvider
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final screenSize = MediaQuery.of(context).size;
+    final localization = AppLocalizations.of(context);
+    final languageProvider = Provider.of<LanguageProvider>(context);
     
     return Scaffold(
       body: Container(
@@ -67,6 +71,72 @@ class _InitialScreenState extends State<InitialScreen> with SingleTickerProvider
         child: SafeArea(
           child: Column(
             children: [
+              // 언어 선택 버튼
+              Align(
+                alignment: Alignment.topRight,
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Material(
+                    color: Colors.white.withOpacity(0.3),
+                    borderRadius: BorderRadius.circular(20),
+                    child: InkWell(
+                      onTap: () {
+                        showDialog(
+                          context: context,
+                          builder: (context) => AlertDialog(
+                            title: Text(localization.languageSettings),
+                            content: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                RadioListTile<String>(
+                                  title: Text(localization.koreanLanguage),
+                                  value: 'ko',
+                                  groupValue: languageProvider.currentLocale.languageCode,
+                                  onChanged: (value) {
+                                    languageProvider.setKorean();
+                                    Navigator.pop(context);
+                                  },
+                                ),
+                                RadioListTile<String>(
+                                  title: Text(localization.englishLanguage),
+                                  value: 'en',
+                                  groupValue: languageProvider.currentLocale.languageCode,
+                                  onChanged: (value) {
+                                    languageProvider.setEnglish();
+                                    Navigator.pop(context);
+                                  },
+                                ),
+                              ],
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(context),
+                                child: Text(localization.closeButton),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                      borderRadius: BorderRadius.circular(20),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.language, color: Colors.white),
+                            SizedBox(width: 8),
+                            Text(
+                              languageProvider.isKorean() ? 'KO' : 'EN',
+                              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              
               // 로고 및 앱 이름
               Expanded(
                 flex: 3,
@@ -121,7 +191,7 @@ class _InitialScreenState extends State<InitialScreen> with SingleTickerProvider
                           Padding(
                             padding: const EdgeInsets.symmetric(horizontal: 40),
                             child: Text(
-                              '당신만을 위한 맞춤형 건강 식단',
+                              localization.appTagline,
                               textAlign: TextAlign.center,
                               style: TextStyle(
                                 fontSize: 18,
@@ -145,27 +215,29 @@ class _InitialScreenState extends State<InitialScreen> with SingleTickerProvider
                   opacity: _fadeInAnimation,
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 24),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        _buildFeatureItem(
-                          icon: Icons.person_outline,
-                          title: '맞춤형 식단 추천',
-                          description: '개인의 신체 정보, 건강 상태, 선호도에 맞춘 최적의 식단',
-                        ),
-                        const SizedBox(height: 20),
-                        _buildFeatureItem(
-                          icon: Icons.health_and_safety_outlined,
-                          title: '건강 중심 접근',
-                          description: '영양소 균형과 건강 상태를 고려한 식단 구성',
-                        ),
-                        const SizedBox(height: 20),
-                        _buildFeatureItem(
-                          icon: Icons.restaurant_outlined,
-                          title: '다양한 요리법 제공',
-                          description: '사용 가능한 조리 도구와 시간을 고려한 레시피',
-                        ),
-                      ],
+                    child: SingleChildScrollView(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          _buildFeatureItem(
+                            icon: Icons.person_outline,
+                            title: localization.feature1Title,
+                            description: localization.feature1Description,
+                          ),
+                          const SizedBox(height: 16),
+                          _buildFeatureItem(
+                            icon: Icons.health_and_safety_outlined,
+                            title: localization.feature2Title,
+                            description: localization.feature2Description,
+                          ),
+                          const SizedBox(height: 16),
+                          _buildFeatureItem(
+                            icon: Icons.restaurant_outlined,
+                            title: localization.feature3Title,
+                            description: localization.feature3Description,
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
@@ -199,7 +271,7 @@ class _InitialScreenState extends State<InitialScreen> with SingleTickerProvider
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           Text(
-                            '맞춤형 식단 추천을 받아보세요',
+                            localization.getCustomMealPlan,
                             style: TextStyle(
                               fontSize: 18,
                               fontWeight: FontWeight.bold,
@@ -209,7 +281,7 @@ class _InitialScreenState extends State<InitialScreen> with SingleTickerProvider
                           ),
                           const SizedBox(height: 8),
                           Text(
-                            '간단한 설문을 통해 나에게 맞는 식단을 찾아드립니다',
+                            localization.surveyDescription,
                             style: TextStyle(
                               fontSize: 14,
                               color: Colors.black54,
@@ -239,7 +311,7 @@ class _InitialScreenState extends State<InitialScreen> with SingleTickerProvider
                               ),
                               elevation: 3,
                             ),
-                            child: const Text('맞춤 설문 시작하기'),
+                            child: Text(localization.startSurveyButton),
                           ),
                           const SizedBox(height: 16),
                           TextButton(
@@ -249,29 +321,7 @@ class _InitialScreenState extends State<InitialScreen> with SingleTickerProvider
                             style: TextButton.styleFrom(
                               foregroundColor: Colors.black54,
                             ),
-                            child: const Text('나중에 할게요'),
-                          ),
-                          
-                          // 설문을 이미 마친 사용자를 위한 메인 화면 복귀 버튼
-                          Consumer<SurveyDataProvider>(
-                            builder: (context, surveyData, _) {
-                              if (surveyData.isSurveyCompleted) {
-                                return Padding(
-                                  padding: const EdgeInsets.only(top: 8.0),
-                                  child: TextButton.icon(
-                                    onPressed: () {
-                                      Navigator.of(context).pushNamedAndRemoveUntil('/home', (route) => false);
-                                    },
-                                    icon: Icon(Icons.arrow_back),
-                                    label: Text('메인 화면으로 돌아가기'),
-                                    style: TextButton.styleFrom(
-                                      foregroundColor: theme.colorScheme.primary,
-                                    ),
-                                  ),
-                                );
-                              }
-                              return SizedBox.shrink(); // 설문을 완료하지 않은 사용자에게는 표시하지 않음
-                            },
+                            child: Text(localization.skipButton),
                           ),
                         ],
                       ),
@@ -292,40 +342,42 @@ class _InitialScreenState extends State<InitialScreen> with SingleTickerProvider
     required String description,
   }) {
     return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Container(
-          width: 50,
-          height: 50,
+          padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(
             color: Colors.white.withOpacity(0.2),
-            borderRadius: BorderRadius.circular(15),
+            borderRadius: BorderRadius.circular(12),
           ),
           child: Icon(
             icon,
             color: Colors.white,
-            size: 30,
+            size: 24,
           ),
         ),
-        const SizedBox(width: 16),
+        const SizedBox(width: 12),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
                 title,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 16,
+                style: TextStyle(
+                  fontSize: 15,
                   fontWeight: FontWeight.bold,
+                  color: Colors.white,
                 ),
               ),
-              const SizedBox(height: 4),
+              const SizedBox(height: 2),
               Text(
                 description,
                 style: TextStyle(
+                  fontSize: 11,
                   color: Colors.white.withOpacity(0.9),
-                  fontSize: 12,
                 ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
               ),
             ],
           ),

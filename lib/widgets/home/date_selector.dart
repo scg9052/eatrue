@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../l10n/app_localizations.dart';
 
 /// 홈 화면의 날짜 선택 위젯
 /// 주간 캘린더 형태로 표시되며, 선택된 날짜를 강조 표시합니다.
@@ -27,10 +28,11 @@ class DateSelector extends StatelessWidget {
     final isDarkMode = theme.brightness == Brightness.dark;
     final screenWidth = MediaQuery.of(context).size.width;
     final buttonWidth = (screenWidth - 32) / 7; // 양쪽 패딩 16씩 제외하고 7등분
+    final localization = AppLocalizations.of(context);
     
     return Container(
-      // 배경색을 스크린샷과 같이 다크한 색상으로 변경
-      color: Color(0xFF2D2D2D),
+      // 테마에 따라 배경색 변경
+      color: isDarkMode ? Color(0xFF2D2D2D) : theme.colorScheme.primary.withOpacity(0.1),
       padding: EdgeInsets.symmetric(vertical: 8),
       child: Column(
         children: [
@@ -47,17 +49,20 @@ class DateSelector extends StatelessWidget {
                     final previousWeekDate = selectedDate.subtract(Duration(days: 7));
                     onDateSelected(previousWeekDate);
                   },
-                  icon: Icon(Icons.chevron_left, color: Colors.white),
-                  tooltip: '이전 주',
+                  icon: Icon(Icons.chevron_left, 
+                    color: isDarkMode ? Colors.white : theme.colorScheme.onSurface),
+                  tooltip: localization.previousWeek,
                 ),
                 
                 // 현재 월 표시
                 Text(
-                  '${selectedDate.year}년 ${selectedDate.month}월',
+                  localization.isKorean() 
+                      ? '${selectedDate.year}${localization.year} ${selectedDate.month}${localization.month}'
+                      : '${localization.months[selectedDate.month - 1]} ${selectedDate.year}',
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: 16,
-                    color: Colors.white,
+                    color: isDarkMode ? Colors.white : theme.colorScheme.primary,
                   ),
                 ),
                 
@@ -68,8 +73,9 @@ class DateSelector extends StatelessWidget {
                     final nextWeekDate = selectedDate.add(Duration(days: 7));
                     onDateSelected(nextWeekDate);
                   },
-                  icon: Icon(Icons.chevron_right, color: Colors.white),
-                  tooltip: '다음 주',
+                  icon: Icon(Icons.chevron_right, 
+                    color: isDarkMode ? Colors.white : theme.colorScheme.onSurface),
+                  tooltip: localization.nextWeek,
                 ),
               ],
             ),
@@ -81,13 +87,20 @@ class DateSelector extends StatelessWidget {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
-                _buildWeekdayLabel('월', Colors.white, buttonWidth),
-                _buildWeekdayLabel('화', Colors.white, buttonWidth),
-                _buildWeekdayLabel('수', Colors.white, buttonWidth),
-                _buildWeekdayLabel('목', Colors.white, buttonWidth),
-                _buildWeekdayLabel('금', Colors.white, buttonWidth),
-                _buildWeekdayLabel('토', Colors.blue[300]!, buttonWidth),
-                _buildWeekdayLabel('일', Colors.red[300]!, buttonWidth),
+                _buildWeekdayLabel(localization.weekdays[0], 
+                  isDarkMode ? Colors.white : theme.colorScheme.onSurface, buttonWidth),
+                _buildWeekdayLabel(localization.weekdays[1], 
+                  isDarkMode ? Colors.white : theme.colorScheme.onSurface, buttonWidth),
+                _buildWeekdayLabel(localization.weekdays[2], 
+                  isDarkMode ? Colors.white : theme.colorScheme.onSurface, buttonWidth),
+                _buildWeekdayLabel(localization.weekdays[3], 
+                  isDarkMode ? Colors.white : theme.colorScheme.onSurface, buttonWidth),
+                _buildWeekdayLabel(localization.weekdays[4], 
+                  isDarkMode ? Colors.white : theme.colorScheme.onSurface, buttonWidth),
+                _buildWeekdayLabel(localization.weekdays[5], 
+                  Colors.blue[isDarkMode ? 300 : 700]!, buttonWidth),
+                _buildWeekdayLabel(localization.weekdays[6], 
+                  Colors.red[isDarkMode ? 300 : 700]!, buttonWidth),
               ],
             ),
           ),
@@ -128,6 +141,8 @@ class DateSelector extends StatelessWidget {
   
   // 날짜 버튼 위젯
   Widget _buildDateButton(BuildContext context, DateTime date, double width) {
+    final theme = Theme.of(context);
+    final isDarkMode = theme.brightness == Brightness.dark;
     final isSelected = date.year == selectedDate.year && 
                       date.month == selectedDate.month && 
                       date.day == selectedDate.day;
@@ -147,9 +162,10 @@ class DateSelector extends StatelessWidget {
             width: buttonSize,
             height: buttonSize,
             decoration: BoxDecoration(
-              color: isSelected ? Color(0xFF7EC176) : Colors.transparent, // 선택된 날짜는 초록색 배경
+              // 선택된 날짜는 강조색 사용
+              color: isSelected ? theme.colorScheme.primary : Colors.transparent,
               border: isToday && !isSelected 
-                  ? Border.all(color: Color(0xFF7EC176), width: 2) // 오늘 날짜는 초록색 테두리
+                  ? Border.all(color: theme.colorScheme.primary, width: 2) // 오늘 날짜는 강조색 테두리
                   : null,
               borderRadius: BorderRadius.circular(8),
             ),
@@ -157,7 +173,7 @@ class DateSelector extends StatelessWidget {
               child: Text(
                 '${date.day}',
                 style: TextStyle(
-                  color: _getDateTextColor(isSelected, isToday, isDifferentMonth, date),
+                  color: _getDateTextColor(context, isSelected, isToday, isDifferentMonth, date),
                   fontWeight: (isSelected || isToday) ? FontWeight.bold : FontWeight.normal,
                   fontSize: 16,
                 ),
@@ -170,25 +186,28 @@ class DateSelector extends StatelessWidget {
   }
   
   // 날짜 텍스트 색상 결정 함수
-  Color _getDateTextColor(bool isSelected, bool isToday, bool isDifferentMonth, DateTime date) {
-    // 선택된 날짜는 항상 하얀색
+  Color _getDateTextColor(BuildContext context, bool isSelected, bool isToday, bool isDifferentMonth, DateTime date) {
+    final theme = Theme.of(context);
+    final isDarkMode = theme.brightness == Brightness.dark;
+    
+    // 선택된 날짜는 항상 선택된 색상에 맞는 텍스트 색상
     if (isSelected) {
-      return Colors.white;
+      return theme.colorScheme.onPrimary;
     }
     
     // 다른 달의 날짜는 회색
     if (isDifferentMonth) {
-      return Colors.grey;
+      return isDarkMode ? Colors.grey[400]! : Colors.grey[600]!;
     }
     
     // 요일에 따른 색상
     if (date.weekday == 6) { // 토요일
-      return Colors.blue[300]!;
+      return Colors.blue[isDarkMode ? 300 : 700]!;
     } else if (date.weekday == 7) { // 일요일
-      return Colors.red[300]!;
+      return Colors.red[isDarkMode ? 300 : 700]!;
     }
     
     // 기본 색상
-    return Colors.white;
+    return isDarkMode ? Colors.white : theme.colorScheme.onSurface;
   }
 } 

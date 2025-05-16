@@ -12,6 +12,7 @@ import '../widgets/survey_pages/survey_page_food_preference.dart';
 import '../widgets/survey_pages/survey_page_cooking_data.dart';
 import '../widgets/survey_pages/survey_page_review.dart';
 import '../widgets/survey_page_container.dart';
+import '../l10n/app_localizations.dart';
 
 class SurveyScreen extends StatefulWidget {
   @override
@@ -39,16 +40,36 @@ class _SurveyScreenState extends State<SurveyScreen> with AutomaticKeepAliveClie
   @override
   void initState() {
     super.initState();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
     _initializeSurveyPages();
+    _updateStepTitles();
+  }
+
+  // 지역화된 단계 제목 업데이트
+  void _updateStepTitles() {
+    final localization = AppLocalizations.of(context);
+    
+    setState(() {
+      _steps[0] = StepData(title: localization.personalInfoTitle, icon: Icons.person);
+      _steps[1] = StepData(title: localization.healthInfoTitle, icon: Icons.favorite);
+      _steps[2] = StepData(title: localization.foodPreferenceTitle, icon: Icons.restaurant);
+      _steps[3] = StepData(title: localization.cookingDataTitle, icon: Icons.kitchen);
+      _steps[4] = StepData(title: localization.reviewTitle, icon: Icons.check_circle);
+    });
   }
 
   void _initializeSurveyPages() {
     final surveyDataProvider = Provider.of<SurveyDataProvider>(context, listen: false);
+    final localization = AppLocalizations.of(context);
     
     _surveyPages = [
       // 1단계: 기본 정보
       SurveyPageContainer(
-        title: '기본 정보',
+        title: localization.personalInfoTitle,
         child: SurveyPagePersonalInfo(
           onUpdate: (age, gender, height, weight, activityLevel, conditions, allergies) {
             // 여기에서 SurveyDataProvider 업데이트 로직 직접 구현
@@ -66,7 +87,7 @@ class _SurveyScreenState extends State<SurveyScreen> with AutomaticKeepAliveClie
       
       // 2단계: 건강 상태
       SurveyPageContainer(
-        title: '건강 상태',
+        title: localization.healthInfoTitle,
         child: SurveyPageHealthInfo(
           onUpdate: (underlyingConditions, allergies) {
             // 여기에서 SurveyDataProvider 업데이트 로직 직접 구현
@@ -79,7 +100,7 @@ class _SurveyScreenState extends State<SurveyScreen> with AutomaticKeepAliveClie
       
       // 3단계: 식습관
       SurveyPageContainer(
-        title: '식습관',
+        title: localization.foodPreferenceTitle,
         child: SurveyPageFoodPreference(
           onUpdate: (isVegan, isReligious, religionDetails, mealPurposes, mealBudget, favFoods, dislikedFoods, cookingMethods) {
             // 여기에서 SurveyDataProvider 업데이트 로직 직접 구현
@@ -98,7 +119,7 @@ class _SurveyScreenState extends State<SurveyScreen> with AutomaticKeepAliveClie
       
       // 4단계: 조리 환경
       SurveyPageContainer(
-        title: '조리 환경',
+        title: localization.cookingDataTitle,
         child: SurveyPageCookingData(
           onUpdate: (cookingTools, preferredTime) {
             // 여기에서 SurveyDataProvider 업데이트 로직 직접 구현
@@ -111,16 +132,40 @@ class _SurveyScreenState extends State<SurveyScreen> with AutomaticKeepAliveClie
       
       // 5단계: 최종 검토
       SurveyPageContainer(
-        title: '검토',
+        title: localization.reviewTitle,
         child: SurveyPageReview(),
       ),
     ];
   }
 
   bool _isPageValid() {
-    // 실제 앱에서는 각 페이지별 유효성 검사 로직을 구현
-    // 일단은 간단하게 진행할 수 있도록 항상 true를 반환
-    return true;
+    final surveyDataProvider = Provider.of<SurveyDataProvider>(context, listen: false);
+    final userData = surveyDataProvider.userData;
+    
+    // 각 페이지별 유효성 검사 로직 구현
+    switch (_currentPageIndex) {
+      case 0: // 기본 정보
+        return userData.age != null && 
+               userData.gender != null && 
+               userData.height != null && 
+               userData.weight != null && 
+               userData.activityLevel != null;
+      case 1: // 건강 상태
+        // 건강 상태에는 필수 필드가 없으므로 항상 유효
+        return true;
+      case 2: // 식습관
+        // 식습관 페이지에서는 선호 조리 방법과 한 끼 예산이 필수
+        return userData.preferredCookingMethods.isNotEmpty && userData.mealBudget != null;
+      case 3: // 조리 환경
+        // 요리 도구는 필수 선택
+        return userData.availableCookingTools.isNotEmpty && 
+               userData.preferredCookingTime != null;
+      case 4: // 검토
+        // 검토 페이지는 항상 유효
+        return true;
+      default:
+        return true;
+    }
   }
 
   void _nextPage() {
@@ -131,9 +176,10 @@ class _SurveyScreenState extends State<SurveyScreen> with AutomaticKeepAliveClie
         _completeSurvey();
       }
     } else {
+      final localization = AppLocalizations.of(context);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('현재 페이지의 필수 항목을 모두 입력해주세요.'),
+          content: Text(localization.validationErrorMessage),
           backgroundColor: Colors.redAccent,
           duration: Duration(seconds: 2),
           behavior: SnackBarBehavior.floating,
@@ -157,22 +203,24 @@ class _SurveyScreenState extends State<SurveyScreen> with AutomaticKeepAliveClie
       await Provider.of<SurveyDataProvider>(context, listen: false).completeSurvey();
       
       // 설문 완료 후 메인 화면(홈 화면)으로 이동하고 성공 메시지 표시
-      Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
+      Navigator.of(context).pushNamedAndRemoveUntil('/home', (route) => false);
       
       // 다음 프레임에서 스낵바 표시 (네비게이션 후)
       WidgetsBinding.instance.addPostFrameCallback((_) {
+        final localization = AppLocalizations.of(context);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('설문이 완료되었습니다. 이제 메뉴 생성 버튼을 눌러 식단을 생성해보세요.'),
+            content: Text(localization.surveyCompleted),
             behavior: SnackBarBehavior.floating,
             duration: Duration(seconds: 4),
           ),
         );
       });
     } catch (e) {
+      final localization = AppLocalizations.of(context);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('설문 저장 중 오류가 발생했습니다: $e'),
+          content: Text('${localization.surveyErrorSaving}: $e'),
           backgroundColor: Colors.red,
           behavior: SnackBarBehavior.floating,
         ),
@@ -199,65 +247,55 @@ class _SurveyScreenState extends State<SurveyScreen> with AutomaticKeepAliveClie
   Widget build(BuildContext context) {
     super.build(context); // AutomaticKeepAliveClientMixin 사용 시 필요
     final surveyDataProvider = Provider.of<SurveyDataProvider>(context);
+    final localization = AppLocalizations.of(context);
     
     return Scaffold(
-      appBar: AppBar(
-        title: Text('맞춤 설문'),
-        elevation: 0,
+      appBar: EatrueAppBar(
+        title: localization.surveyTitle,
+        subtitle: _steps[_currentPageIndex].title,
+        showBackButton: _currentPageIndex > 0,
+        onBackPressed: _previousPage,
         actions: [
-          // 이미 설문을 완료한 사용자를 위한 액션 버튼
           if (surveyDataProvider.isSurveyCompleted)
             TextButton.icon(
               onPressed: () {
                 showDialog(
                   context: context,
                   builder: (context) => AlertDialog(
-                    title: Text('메인 화면으로 돌아가기'),
-                    content: Text('설문을 이미 완료했습니다. 변경 사항을 저장하지 않고 메인 화면으로 돌아가시겠습니까?'),
+                    title: Text(localization.backToHomeTitle),
+                    content: Text(localization.backToHomeContent),
                     actions: [
                       TextButton(
                         onPressed: () => Navigator.of(context).pop(),
-                        child: Text('취소'),
+                        child: Text(localization.cancelButton),
                       ),
                       ElevatedButton(
                         onPressed: () {
                           Navigator.of(context).pop();
                           Navigator.of(context).pushNamedAndRemoveUntil('/home', (route) => false);
                         },
-                        child: Text('돌아가기'),
+                        child: Text(localization.backButton),
                       ),
                     ],
                   ),
                 );
               },
               icon: Icon(Icons.home, color: Colors.white),
-              label: Text('메인 화면', style: TextStyle(color: Colors.white)),
+              label: Text(localization.homeScreenButton, style: TextStyle(color: Colors.white)),
             ),
         ],
+        stepper: SurveyStepper(
+          steps: _steps,
+          currentStep: _currentPageIndex,
+          onStepTapped: _goToStep,
+          totalSteps: _steps.length,
+          allowStepSelection: true,
+        ),
       ),
       body: _isLoading
-          ? FullScreenProgressLoading(message: '설문 데이터를 저장하는 중...')
+          ? FullScreenProgressLoading(message: localization.loadingUserInfo)
           : Column(
         children: [
-          // 설문 스텝퍼 표시
-          Theme(
-            data: Theme.of(context).copyWith(
-              tabBarTheme: TabBarTheme(
-                labelColor: Theme.of(context).colorScheme.primary,
-                unselectedLabelColor: Theme.of(context).textTheme.bodyMedium?.color,
-                indicatorSize: TabBarIndicatorSize.tab,
-                labelStyle: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, fontFamily: 'NotoSansKR'),
-                unselectedLabelStyle: TextStyle(fontSize: 14, fontFamily: 'NotoSansKR'),
-              ),
-            ),
-            child: SurveyStepper(
-              steps: _steps,
-              currentStep: _currentPageIndex,
-              onStepTapped: _goToStep,
-              totalSteps: _steps.length,
-            ),
-          ),
-          
           Expanded(
             child: PageView(
               controller: _pageController,
@@ -292,7 +330,7 @@ class _SurveyScreenState extends State<SurveyScreen> with AutomaticKeepAliveClie
                   ElevatedButton.icon(
                     onPressed: _previousPage,
                     icon: Icon(Icons.arrow_back),
-                    label: Text('이전'),
+                    label: Text(localization.prevButton),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Theme.of(context).colorScheme.secondary,
                       foregroundColor: Theme.of(context).textTheme.bodyLarge?.color,
@@ -306,7 +344,7 @@ class _SurveyScreenState extends State<SurveyScreen> with AutomaticKeepAliveClie
                 ElevatedButton.icon(
                   onPressed: _nextPage,
                   icon: Icon(_currentPageIndex < _surveyPages.length - 1 ? Icons.arrow_forward : Icons.check),
-                  label: Text(_currentPageIndex < _surveyPages.length - 1 ? '다음' : '완료'),
+                  label: Text(_currentPageIndex < _surveyPages.length - 1 ? localization.nextButton : localization.submitButton),
                   style: ElevatedButton.styleFrom(
                     padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                   ),

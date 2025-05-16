@@ -15,12 +15,12 @@ class SurveyPageContainer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
-      padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 15.0),
+      padding: const EdgeInsets.symmetric(horizontal: 22.0, vertical: 18.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: const EdgeInsets.only(bottom: 8.0),
+            padding: const EdgeInsets.only(bottom: 10.0),
             child: Text(
               title,
               style: Theme.of(context).textTheme.headlineSmall?.copyWith(
@@ -29,9 +29,10 @@ class SurveyPageContainer extends StatelessWidget {
               ),
             ),
           ),
-          Divider(thickness: 1.5, color: Colors.grey[300], height: 20),
-          SizedBox(height: 15),
+          Divider(thickness: 1.5, color: Theme.of(context).dividerColor, height: 24),
+          SizedBox(height: 18),
           child,
+          SizedBox(height: 10), // 하단에 여유 공간 추가
         ],
       ),
     );

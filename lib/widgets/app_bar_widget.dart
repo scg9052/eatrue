@@ -128,6 +128,13 @@ class EatrueAppBar extends StatelessWidget implements PreferredSizeWidget {
                         height: isSmallScreen ? 35 : 40, // 더 작게 조정
                         child: bottom!,
                       ),
+                    
+                    // stepper 위젯 (스텝퍼)
+                    if (stepper != null) 
+                      SizedBox(
+                        height: isSmallScreen ? 35 : 40, // 더 작게 조정
+                        child: stepper!,
+                      ),
                   ],
                 ),
               ),
@@ -174,6 +181,11 @@ class EatrueAppBar extends StatelessWidget implements PreferredSizeWidget {
     
     // bottom 위젯이 있는 경우 높이 추가 (스텝퍼)
     if (bottom != null) {
+      totalHeight += 35;  // 스텝퍼 위젯 높이 (더 줄임)
+    }
+    
+    // stepper 위젯이 있는 경우 높이 추가 (스텝퍼)
+    if (stepper != null) {
       totalHeight += 35;  // 스텝퍼 위젯 높이 (더 줄임)
     }
     

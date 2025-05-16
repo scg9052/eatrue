@@ -13,6 +13,7 @@ import 'recipe_detail_screen.dart';
 import 'saved_meals_screen.dart';
 import '../widgets/skeleton_loading.dart';
 import '../widgets/progress_loading.dart';
+import '../l10n/app_localizations.dart';
 
 // 컴포넌트화된 위젯 임포트
 import '../widgets/home/date_selector.dart';
@@ -29,6 +30,23 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _initialMenuGenerated = false;
   bool _isLoadingDate = false;
   bool _firstLoad = true; // 첫 로드 여부를 추적
+  
+  // 날짜 포맷 지역화
+  String _getFormattedDate(BuildContext context, DateTime date) {
+    final localization = AppLocalizations.of(context);
+    
+    if (localization.isKorean()) {
+      return '${date.month}월 ${date.day}일 (${_getKoreanWeekday(date.weekday)})';
+    } else {
+      return DateFormat('MMMM d (EEEE)').format(date);
+    }
+  }
+  
+  // 한국어 요일 반환
+  String _getKoreanWeekday(int weekday) {
+    final weekdays = ['월', '화', '수', '목', '금', '토', '일'];
+    return weekdays[weekday - 1];
+  }
 
   @override
   void initState() {
@@ -168,11 +186,12 @@ class _HomeScreenState extends State<HomeScreen> {
     final mealProvider = Provider.of<MealProvider>(context);
     final theme = Theme.of(context);
     final List<DateTime> weekDates = _getDatesForWeek();
+    final localization = AppLocalizations.of(context);
     
     return Scaffold(
       appBar: EatrueAppBar(
-        title: '나의 식단',
-        subtitle: '건강한 식단 관리를 시작해보세요',
+        title: localization.homeTitle,
+        subtitle: localization.todayMeals,
         actions: [
           IconButton(
             icon: Icon(Icons.calendar_today, color: Colors.white, size: 20),
@@ -210,12 +229,14 @@ class _HomeScreenState extends State<HomeScreen> {
   
   // 하단 섹션 (로딩 인디케이터 또는 버튼)
   Widget _buildBottomSection(MealProvider mealProvider) {
+    final localization = AppLocalizations.of(context);
+    
     // 로딩 중인 경우 진행 메시지 표시
     if (mealProvider.isLoading) {
       return Container(
         padding: EdgeInsets.all(16),
         child: ProgressLoadingBar(
-          message: mealProvider.progressMessage ?? '메뉴 생성 중...',
+          message: mealProvider.progressMessage ?? localization.generatingMealMessage,
           progress: mealProvider.progressPercentage,
         ),
       );
@@ -254,7 +275,7 @@ class _HomeScreenState extends State<HomeScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
-              '맞춤 식단을 생성하여 식단 관리를 시작해보세요!',
+              localization.noMealsToday,
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 15, 
@@ -267,7 +288,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ElevatedButton.icon(
               onPressed: _triggerGeneratePersonalizedMenu,
               icon: Icon(Icons.auto_awesome),
-              label: Text('오늘의 식단 생성하기'),
+              label: Text(localization.createTodayMeal),
               style: ElevatedButton.styleFrom(
                 minimumSize: Size(double.infinity, 48),
               ),

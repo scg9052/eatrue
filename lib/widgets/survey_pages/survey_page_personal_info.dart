@@ -1,10 +1,11 @@
- // widgets/survey_pages/survey_page_personal_info.dart
+// widgets/survey_pages/survey_page_personal_info.dart
 // (UserData에 activityLevel 추가됨에 따라, 해당 정보 입력 UI 추가)
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../providers/survey_data_provider.dart';
 import '../../models/user_data.dart';
+import '../../l10n/app_localizations.dart';
 
 class SurveyPagePersonalInfo extends StatefulWidget {
   final Function(int? age, String? gender, double? height, double? weight, String? activityLevel, List<String> conditions, List<String> allergies) onUpdate;
@@ -19,13 +20,18 @@ class _SurveyPagePersonalInfoState extends State<SurveyPagePersonalInfo> {
   final TextEditingController _ageController = TextEditingController();
   final TextEditingController _heightController = TextEditingController();
   final TextEditingController _weightController = TextEditingController();
+  
+  // 포커스 노드 추가
+  final FocusNode _ageFocusNode = FocusNode();
+  final FocusNode _heightFocusNode = FocusNode();
+  final FocusNode _weightFocusNode = FocusNode();
 
   String? _selectedGender;
-  final List<String> _genders = ['남성', '여성', '기타', '선택 안함'];
+  late List<String> _genders;
 
   // 활동 수준 옵션
   String? _selectedActivityLevel;
-  final List<String> _activityLevels = ['매우 낮음 (거의 운동 안함)', '낮음 (주 1-2회 가벼운 운동)', '보통 (주 3-5회 중간 강도 운동)', '높음 (주 6-7회 고강도 운동)', '매우 높음 (매일 매우 고강도 운동 또는 육체노동)'];
+  late List<String> _activityLevels;
 
   // 빈 리스트로 초기화 (건강 상태 페이지에서 다룰 예정)
   List<String> _underlyingConditions = [];
@@ -41,9 +47,167 @@ class _SurveyPagePersonalInfoState extends State<SurveyPagePersonalInfo> {
     _selectedGender = existingData.gender;
     if (existingData.height != null) _heightController.text = existingData.height.toString();
     if (existingData.weight != null) _weightController.text = existingData.weight.toString();
-    _selectedActivityLevel = existingData.activityLevel ?? _activityLevels[2]; // 기본값 '보통'
+    
+    // 활동 수준 초기화
+    _selectedActivityLevel = existingData.activityLevel;
+    
     _underlyingConditions = List<String>.from(existingData.underlyingConditions);
     _allergies = List<String>.from(existingData.allergies);
+    
+    // 포커스 리스너 설정
+    _ageFocusNode.addListener(() {
+      if (!_ageFocusNode.hasFocus) {
+        _validateAge();
+      }
+    });
+    
+    _heightFocusNode.addListener(() {
+      if (!_heightFocusNode.hasFocus) {
+        _validateHeight();
+      }
+    });
+    
+    _weightFocusNode.addListener(() {
+      if (!_weightFocusNode.hasFocus) {
+        _validateWeight();
+      }
+    });
+  }
+  
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final localization = AppLocalizations.of(context);
+    
+    // 현재 선택된 성별 저장
+    String? previousGender = _selectedGender;
+    
+    // 지역화된 문자열로 초기화
+    _genders = [
+      localization.maleOption,
+      localization.femaleOption,
+      localization.isKorean() ? '기타' : 'Other',
+      localization.isKorean() ? '선택 안함' : 'Prefer not to say'
+    ];
+    
+    // 이전에 선택한 성별이 있는 경우, 적절한 인덱스로 매핑
+    if (previousGender != null) {
+      // 언어가 변경되었을 때 올바른 성별 옵션을 선택
+      if (previousGender == 'Male' || previousGender == '남성') {
+        _selectedGender = localization.maleOption;
+      } else if (previousGender == 'Female' || previousGender == '여성') {
+        _selectedGender = localization.femaleOption;
+      } else if (previousGender == 'Other' || previousGender == '기타') {
+        _selectedGender = localization.isKorean() ? '기타' : 'Other';
+      } else if (previousGender == 'Prefer not to say' || previousGender == '선택 안함') {
+        _selectedGender = localization.isKorean() ? '선택 안함' : 'Prefer not to say';
+      }
+      
+      // 변경된 경우 부모 업데이트
+      if (_selectedGender != previousGender) {
+        _updateParent();
+      }
+    }
+    
+    _activityLevels = [
+      localization.activityLevel1,
+      localization.activityLevel2,
+      localization.activityLevel3,
+      localization.activityLevel4,
+      localization.activityLevel5,
+    ];
+    
+    // 활동량 기본값 설정 (보통 = index 2)
+    final surveyDataProvider = Provider.of<SurveyDataProvider>(context, listen: false);
+    
+    // 기존 활동량이 없으면 무조건 기본값 설정
+    if (_selectedActivityLevel == null || _selectedActivityLevel!.isEmpty) {
+      _selectedActivityLevel = _activityLevels[2]; // '보통' 수준을 기본값으로
+      surveyDataProvider.userData.activityLevel = _selectedActivityLevel;
+      
+      // 여기서 데이터 프로바이더도 업데이트
+      _updateParent();
+    }
+    
+    // 설정된 활동량이 현재 지역화된 옵션에 없는 경우도 체크
+    bool found = false;
+    for (String level in _activityLevels) {
+      if (level == _selectedActivityLevel) {
+        found = true;
+        break;
+      }
+    }
+    
+    if (!found) {
+      _selectedActivityLevel = _activityLevels[2];
+      surveyDataProvider.userData.activityLevel = _selectedActivityLevel;
+      
+      // 여기서도 데이터 프로바이더 업데이트
+      _updateParent();
+    }
+  }
+
+  // 나이 값 검증
+  void _validateAge() {
+    if (_ageController.text.isEmpty) return;
+    
+    final age = int.tryParse(_ageController.text);
+    if (age != null) {
+      if (age < 1) {
+        _ageController.text = '1';
+        _ageController.selection = TextSelection.fromPosition(
+          TextPosition(offset: _ageController.text.length)
+        );
+      } else if (age > 120) {
+        _ageController.text = '120';
+        _ageController.selection = TextSelection.fromPosition(
+          TextPosition(offset: _ageController.text.length)
+        );
+      }
+    }
+    _updateParent();
+  }
+  
+  // 키 값 검증
+  void _validateHeight() {
+    if (_heightController.text.isEmpty) return;
+    
+    final height = double.tryParse(_heightController.text);
+    if (height != null) {
+      if (height < 50) {
+        _heightController.text = '50';
+        _heightController.selection = TextSelection.fromPosition(
+          TextPosition(offset: _heightController.text.length)
+        );
+      } else if (height > 250) {
+        _heightController.text = '250';
+        _heightController.selection = TextSelection.fromPosition(
+          TextPosition(offset: _heightController.text.length)
+        );
+      }
+    }
+    _updateParent();
+  }
+  
+  // 체중 값 검증
+  void _validateWeight() {
+    if (_weightController.text.isEmpty) return;
+    
+    final weight = double.tryParse(_weightController.text);
+    if (weight != null) {
+      if (weight < 20) {
+        _weightController.text = '20';
+        _weightController.selection = TextSelection.fromPosition(
+          TextPosition(offset: _weightController.text.length)
+        );
+      } else if (weight > 300) {
+        _weightController.text = '300';
+        _weightController.selection = TextSelection.fromPosition(
+          TextPosition(offset: _weightController.text.length)
+        );
+      }
+    }
+    _updateParent();
   }
 
   InputDecoration _inputDecoration(String label, {String? hint, IconData? icon, Widget? suffixIcon, bool isRequired = false}) {
@@ -98,9 +262,9 @@ class _SurveyPagePersonalInfoState extends State<SurveyPagePersonalInfo> {
       _selectedGender,
       double.tryParse(_heightController.text),
       double.tryParse(_weightController.text),
-      _selectedActivityLevel,
-      _underlyingConditions, // 빈 리스트 전달
-      _allergies, // 빈 리스트 전달
+      _selectedActivityLevel ?? _activityLevels[2], // 활동량이 null인 경우 '보통' 수준 기본값 사용
+      _underlyingConditions,
+      _allergies,
     );
   }
 
@@ -153,6 +317,7 @@ class _SurveyPagePersonalInfoState extends State<SurveyPagePersonalInfo> {
     final isSmallScreen = screenSize.height < 700; // 작은 화면 기기 감지
     final theme = Theme.of(context);
     final horizontalPadding = isSmallScreen ? 8.0 : 16.0;
+    final localization = AppLocalizations.of(context);
     
     // 텍스트 필드의 높이를 화면 크기에 맞게 조정
     final textFieldHeight = isSmallScreen ? 46.0 : 52.0;
@@ -176,7 +341,7 @@ class _SurveyPagePersonalInfoState extends State<SurveyPagePersonalInfo> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                '기본 정보',
+                localization.personalInfoTitle,
                 style: TextStyle(
                   fontSize: isSmallScreen ? 18 : 20,
                   fontWeight: FontWeight.bold,
@@ -185,7 +350,9 @@ class _SurveyPagePersonalInfoState extends State<SurveyPagePersonalInfo> {
               ),
               SizedBox(height: 8),
               Text(
-                '맞춤형 식단 추천을 위해 필요한 기본 정보를 입력해주세요.',
+                localization.isKorean() 
+                    ? '맞춤형 식단 추천을 위해 필요한 기본 정보를 입력해주세요.'
+                    : 'Please enter the basic information needed for customized meal recommendations.',
                 style: TextStyle(
                   fontSize: isSmallScreen ? 13 : 14,
                   color: theme.colorScheme.onSurface.withOpacity(0.7),
@@ -196,190 +363,203 @@ class _SurveyPagePersonalInfoState extends State<SurveyPagePersonalInfo> {
         ),
         
         // 기본 신체 정보 섹션
-        _buildSectionLabel('기본 신체 정보', isRequired: true),
+        _buildSectionLabel(localization.profileBasicInfo, isRequired: true),
         
         // 나이 입력
-        SizedBox(
+        Container(
           height: textFieldHeight,
+          margin: EdgeInsets.symmetric(vertical: 8, horizontal: horizontalPadding),
           child: TextField(
             controller: _ageController,
+            focusNode: _ageFocusNode,
             decoration: _inputDecoration(
-              '나이 입력', 
-              hint: '예: 30', 
-              icon: Icons.cake_outlined, 
-              isRequired: true
+              localization.ageLabel,
+              hint: localization.isKorean() ? '나이 입력 (1-120세)' : 'Enter age (1-120 years)',
+              icon: Icons.person_outline,
+              isRequired: true,
+              suffixIcon: Text(
+                localization.isKorean() ? '세' : 'years',
+                style: TextStyle(color: theme.hintColor),
+              ),
             ),
             keyboardType: TextInputType.number,
-            inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(2)],
-            onChanged: (_) => _updateParent(),
-            style: TextStyle(fontSize: isSmallScreen ? 14 : 16),
-            textInputAction: TextInputAction.next, // 키보드에서 다음 버튼 활성화
+            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+            onChanged: (value) => _updateParent(),
+            onEditingComplete: _validateAge,
+            onSubmitted: (_) => _validateAge(),
           ),
         ),
-        SizedBox(height: 16),
         
-        // 성별 선택 (더 현대적인 UI)
-        Container(
-          width: double.infinity,
-          padding: EdgeInsets.symmetric(vertical: 8.0, horizontal: 12.0),
-          decoration: BoxDecoration(
-            color: theme.inputDecorationTheme.fillColor,
-            borderRadius: BorderRadius.circular(12.0),
-            border: Border.all(color: theme.dividerColor),
-          ),
+        // 성별 선택
+        Padding(
+          padding: EdgeInsets.symmetric(vertical: 8, horizontal: horizontalPadding),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Padding(
-                padding: const EdgeInsets.only(left: 4.0, top: 4.0, bottom: 8.0),
-                child: RichText(
-                  text: TextSpan(
-                    text: '성별',
-                    style: TextStyle(
-                      color: theme.textTheme.bodyMedium?.color, 
-                      fontSize: isSmallScreen ? 14 : 16,
-                      fontFamily: 'NotoSansKR'
+              _buildRequiredLabel(localization.genderLabel),
+              SizedBox(height: 8),
+              Row(
+                children: [
+                  for (int i = 0; i < _genders.length; i++)
+                    Expanded(
+                      child: Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 2),
+                        child: OutlinedButton(
+                          onPressed: () {
+                            setState(() {
+                              _selectedGender = _genders[i];
+                              _updateParent();
+                            });
+                          },
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: _selectedGender == _genders[i]
+                                ? theme.colorScheme.onPrimary
+                                : null,
+                            backgroundColor: _selectedGender == _genders[i]
+                                ? theme.colorScheme.primary
+                                : null,
+                            padding: EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            side: BorderSide(
+                              color: _selectedGender == _genders[i]
+                                  ? theme.colorScheme.primary
+                                  : theme.dividerColor,
+                            ),
+                          ),
+                          child: Text(
+                            _genders[i],
+                            style: TextStyle(fontSize: isSmallScreen ? 12 : 14),
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                      ),
                     ),
-                    children: <TextSpan>[
-                      TextSpan(text: ' *', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
-                    ],
-                  ),
-                ),
-              ),
-              Wrap(
-                spacing: 8.0,
-                children: _genders.map((gender) {
-                  final isSelected = gender == _selectedGender;
-                  return ChoiceChip(
-                    label: Text(gender),
-                    selected: isSelected,
-                    labelStyle: TextStyle(
-                      color: isSelected ? Colors.white : theme.textTheme.bodyMedium?.color,
-                      fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                    ),
-                    backgroundColor: theme.chipTheme.backgroundColor,
-                    selectedColor: theme.colorScheme.primary,
-                    onSelected: (selected) {
-                      if (selected) {
-                        setState(() {
-                          _selectedGender = gender;
-                          _updateParent();
-                        });
-                      }
-                    },
-                    padding: EdgeInsets.symmetric(horizontal: 8.0, vertical: 2.0),
-                  );
-                }).toList(),
+                ],
               ),
             ],
           ),
         ),
-        SizedBox(height: 16),
         
-        // 키와 체중 입력 (가로 배치)
-        Row(
-          children: [
-            // 키 입력
-            Expanded(
-              child: SizedBox(
-                height: textFieldHeight,
-                child: TextField(
-                  controller: _heightController,
-                  decoration: _inputDecoration(
-                    '키 (cm)', 
-                    hint: '예: 170', 
-                    icon: Icons.height, 
-                    isRequired: true
-                  ),
-                  keyboardType: TextInputType.numberWithOptions(decimal: true),
-                  inputFormatters: [
-                    FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,1}')),
-                    LengthLimitingTextInputFormatter(5)
-                  ],
-                  onChanged: (_) => _updateParent(),
-                  style: TextStyle(fontSize: isSmallScreen ? 14 : 16),
-                  textInputAction: TextInputAction.next, // 키보드에서 다음 버튼 활성화
-                ),
-              ),
-            ),
-            SizedBox(width: 16),
-            // 체중 입력
-            Expanded(
-              child: SizedBox(
-                height: textFieldHeight,
-                child: TextField(
-                  controller: _weightController,
-                  decoration: _inputDecoration(
-                    '체중 (kg)', 
-                    hint: '예: 65', 
-                    icon: Icons.monitor_weight_outlined, 
-                    isRequired: true
-                  ),
-                  keyboardType: TextInputType.numberWithOptions(decimal: true),
-                  inputFormatters: [
-                    FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,1}')),
-                    LengthLimitingTextInputFormatter(5)
-                  ],
-                  onChanged: (_) => _updateParent(),
-                  style: TextStyle(fontSize: isSmallScreen ? 14 : 16),
-                  textInputAction: TextInputAction.next, // 키보드에서 다음 버튼 활성화
-                ),
-              ),
-            ),
-          ],
-        ),
-        SizedBox(height: 24),
-        
-        // 활동 수준 섹션
-        _buildSectionLabel('활동 수준', isRequired: true),
+        // 키 입력
         Container(
-          width: double.infinity,
-          padding: EdgeInsets.all(16.0),
-          decoration: BoxDecoration(
-            color: theme.inputDecorationTheme.fillColor,
-            borderRadius: BorderRadius.circular(12.0),
-            border: Border.all(color: theme.dividerColor),
+          height: textFieldHeight,
+          margin: EdgeInsets.symmetric(vertical: 8, horizontal: horizontalPadding),
+          child: TextField(
+            controller: _heightController,
+            focusNode: _heightFocusNode,
+            decoration: _inputDecoration(
+              localization.heightLabel,
+              hint: localization.isKorean() ? '키 입력 (50-250cm)' : 'Enter height (50-250cm)',
+              icon: Icons.height,
+              isRequired: true,
+              suffixIcon: Text(
+                'cm',
+                style: TextStyle(color: theme.hintColor),
+              ),
+            ),
+            keyboardType: TextInputType.number,
+            inputFormatters: [
+              FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,1}$')),
+            ],
+            onChanged: (value) => _updateParent(),
+            onEditingComplete: _validateHeight,
+            onSubmitted: (_) => _validateHeight(),
           ),
+        ),
+        
+        // 체중 입력
+        Container(
+          height: textFieldHeight,
+          margin: EdgeInsets.symmetric(vertical: 8, horizontal: horizontalPadding),
+          child: TextField(
+            controller: _weightController,
+            focusNode: _weightFocusNode,
+            decoration: _inputDecoration(
+              localization.weightLabel,
+              hint: localization.isKorean() ? '체중 입력 (20-200kg)' : 'Enter weight (20-200kg)',
+              icon: Icons.fitness_center,
+              isRequired: true,
+              suffixIcon: Text(
+                'kg',
+                style: TextStyle(color: theme.hintColor),
+              ),
+            ),
+            keyboardType: TextInputType.number,
+            inputFormatters: [
+              FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,1}$')),
+            ],
+            onChanged: (value) => _updateParent(),
+            onEditingComplete: _validateWeight,
+            onSubmitted: (_) => _validateWeight(),
+          ),
+        ),
+        
+        // 활동 수준 선택
+        Padding(
+          padding: EdgeInsets.symmetric(vertical: 8, horizontal: horizontalPadding),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
-            children: _activityLevels.map((level) {
-              final isSelected = level == _selectedActivityLevel;
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 8.0),
-                child: RadioListTile<String>(
-                  title: Text(
-                    level,
+            children: [
+              _buildRequiredLabel(localization.activityLevelLabel),
+              SizedBox(height: 8),
+              Container(
+                decoration: BoxDecoration(
+                  border: Border.all(color: _selectedActivityLevel == null ? Colors.red : theme.dividerColor),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Column(
+                  children: _activityLevels.map((level) {
+                    return RadioListTile<String>(
+                      title: Text(
+                        level,
+                        style: TextStyle(
+                          fontSize: isSmallScreen ? 13 : 14,
+                          fontWeight: _selectedActivityLevel == level ? FontWeight.bold : FontWeight.normal,
+                        ),
+                      ),
+                      value: level,
+                      groupValue: _selectedActivityLevel,
+                      activeColor: theme.colorScheme.primary,
+                      onChanged: (value) {
+                        setState(() {
+                          _selectedActivityLevel = value;
+                          _updateParent();
+                        });
+                      },
+                      contentPadding: EdgeInsets.symmetric(
+                        horizontal: isSmallScreen ? 8 : 16,
+                        vertical: 0,
+                      ),
+                      dense: true,
+                    );
+                  }).toList(),
+                ),
+              ),
+              if (_selectedActivityLevel == null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 4.0, left: 8.0),
+                  child: Text(
+                    localization.isKorean() ? '* 활동량을 선택해주세요' : '* Please select your activity level',
                     style: TextStyle(
-                      fontSize: isSmallScreen ? 14 : 15,
-                      fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                      color: Colors.red,
+                      fontSize: 12,
                     ),
                   ),
-                  value: level,
-                  groupValue: _selectedActivityLevel,
-                  onChanged: (val) {
-                    setState(() {
-                      _selectedActivityLevel = val;
-                      _updateParent();
-                    });
-                  },
-                  activeColor: theme.colorScheme.primary,
-                  contentPadding: EdgeInsets.symmetric(horizontal: 4.0),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
                 ),
-              );
-            }).toList(),
+            ],
           ),
         ),
-        
-        SizedBox(height: 16),
       ],
     );
   }
 
   @override
   void dispose() {
+    _ageFocusNode.dispose();
+    _heightFocusNode.dispose();
+    _weightFocusNode.dispose();
     _ageController.dispose();
     _heightController.dispose();
     _weightController.dispose();

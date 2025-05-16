@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../l10n/app_localizations.dart';
 
 // 스켈레톤 효과를 위한 기본 위젯
 class SkeletonContainer extends StatelessWidget {
@@ -321,6 +322,14 @@ class RecipeDetailSkeleton extends StatelessWidget {
 class HomeScreenSkeleton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
+    final localization = AppLocalizations.of(context);
+    final mealTypes = [
+      localization.breakfast,
+      localization.lunch,
+      localization.dinner,
+      localization.snack
+    ];
+    
     return SingleChildScrollView(
       padding: EdgeInsets.symmetric(vertical: 16),
       child: Column(
@@ -334,7 +343,7 @@ class HomeScreenSkeleton extends StatelessWidget {
           SizedBox(height: 20),
           
           // 식단 카드 스켈레톤
-          ...['아침', '점심', '저녁', '간식'].map((mealType) => 
+          ...mealTypes.map((mealType) => 
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
               child: Column(

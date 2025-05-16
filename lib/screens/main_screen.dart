@@ -3,11 +3,13 @@ import 'package:provider/provider.dart';
 
 import 'home_screen.dart';
 import 'meal_base_screen.dart';
+import 'settings_screen.dart';
 import '../widgets/app_bar_widget.dart';
 import '../providers/survey_data_provider.dart';
 import '../providers/meal_provider.dart';
 import '../services/food_analysis_service.dart';
 import '../widgets/progress_loading.dart';
+import '../l10n/app_localizations.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({Key? key}) : super(key: key);
@@ -34,28 +36,32 @@ class _MainScreenState extends State<MainScreen> {
   }
   
   // 각 탭 아이템 정의
-  final List<BottomNavigationBarItem> _bottomNavItems = [
-    BottomNavigationBarItem(
-      icon: Icon(Icons.home_outlined),
-      activeIcon: Icon(Icons.home),
-      label: '홈',
-    ),
-    BottomNavigationBarItem(
-      icon: Icon(Icons.restaurant_menu_outlined),
-      activeIcon: Icon(Icons.restaurant_menu),
-      label: '식단 생성',
-    ),
-    BottomNavigationBarItem(
-      icon: Icon(Icons.dashboard_outlined),
-      activeIcon: Icon(Icons.dashboard),
-      label: '식단 베이스',
-    ),
-    BottomNavigationBarItem(
-      icon: Icon(Icons.person_outline),
-      activeIcon: Icon(Icons.person),
-      label: '프로필',
-    ),
-  ];
+  List<BottomNavigationBarItem> _buildBottomNavItems(BuildContext context) {
+    final localization = AppLocalizations.of(context);
+    
+    return [
+      BottomNavigationBarItem(
+        icon: Icon(Icons.home_outlined),
+        activeIcon: Icon(Icons.home),
+        label: localization.tabHome,
+      ),
+      BottomNavigationBarItem(
+        icon: Icon(Icons.restaurant_menu_outlined),
+        activeIcon: Icon(Icons.restaurant_menu),
+        label: localization.tabCreateMeal,
+      ),
+      BottomNavigationBarItem(
+        icon: Icon(Icons.dashboard_outlined),
+        activeIcon: Icon(Icons.dashboard),
+        label: localization.tabMealBase,
+      ),
+      BottomNavigationBarItem(
+        icon: Icon(Icons.person_outline),
+        activeIcon: Icon(Icons.person),
+        label: localization.tabProfile,
+      ),
+    ];
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -71,10 +77,10 @@ class _MainScreenState extends State<MainScreen> {
             _currentIndex = index;
           });
         },
+        items: _buildBottomNavItems(context),
         type: BottomNavigationBarType.fixed,
         selectedItemColor: Theme.of(context).colorScheme.primary,
         unselectedItemColor: Colors.grey[600],
-        items: _bottomNavItems,
         elevation: 8,
         selectedLabelStyle: TextStyle(fontWeight: FontWeight.w600, fontSize: 12),
         unselectedLabelStyle: TextStyle(fontSize: 12),
@@ -89,6 +95,11 @@ class MealGenerationScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final mealProvider = Provider.of<MealProvider>(context);
     final surveyDataProvider = Provider.of<SurveyDataProvider>(context);
+    final localization = AppLocalizations.of(context);
+    
+    // 지역화 설정
+    mealProvider.setLocalizations(context);
+    
     final isLoading = mealProvider.isLoading;
     final progressMessage = mealProvider.progressMessage;
     final progressPercentage = mealProvider.progressPercentage;
@@ -96,12 +107,12 @@ class MealGenerationScreen extends StatelessWidget {
     
     return Scaffold(
       appBar: EatrueAppBar(
-        title: '식단 생성',
-        subtitle: '개인 맞춤 식단을 생성합니다',
+        title: localization.mealGenerationTitle,
+        subtitle: localization.mealGenerationSubtitle,
       ),
       body: isLoading 
           ? FullScreenProgressLoading(
-              message: progressMessage ?? '로딩 중...',
+              message: progressMessage ?? localization.loadingUserInfo,
               progress: progressPercentage,
             )
           : Padding(
@@ -161,7 +172,7 @@ class MealGenerationScreen extends StatelessWidget {
                                       ),
                                       SizedBox(height: 16),
                                       Text(
-                                        '맞춤형 식단 생성',
+                                        localization.mealGenerationTitle,
                                         style: TextStyle(
                                           fontWeight: FontWeight.bold,
                                           color: Theme.of(context).colorScheme.primary,
@@ -174,7 +185,7 @@ class MealGenerationScreen extends StatelessWidget {
                             ),
                             SizedBox(height: 24),
                             Text(
-                              '맞춤형 식단 생성',
+                              localization.mealGenerationTitle,
                               style: Theme.of(context).textTheme.headlineMedium,
                               textAlign: TextAlign.center,
                             ),
@@ -182,7 +193,7 @@ class MealGenerationScreen extends StatelessWidget {
                             Padding(
                               padding: const EdgeInsets.symmetric(horizontal: 16.0),
                               child: Text(
-                                'AI가 당신의 신체 정보, 선호도, 활동량 등을 고려하여 최적의 식단을 구성합니다.',
+                                localization.mealGenerationDescription,
                                 textAlign: TextAlign.center,
                                 style: Theme.of(context).textTheme.bodyMedium,
                               ),
@@ -196,23 +207,19 @@ class MealGenerationScreen extends StatelessWidget {
                                 // 생성 시작 메시지 표시
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   SnackBar(
-                                    content: Text('맞춤 식단을 생성 중입니다. 잠시 기다려주세요.'),
+                                    content: Text(localization.generatingMealMessage),
                                     duration: Duration(seconds: 2),
                                   ),
                                 );
-                                
-                                // 메인 화면의 홈 탭(인덱스 0)으로 이동
-                                final mainScreenState = context.findAncestorStateOfType<_MainScreenState>();
-                                if (mainScreenState != null) {
-                                  mainScreenState.setState(() {
-                                    mainScreenState._currentIndex = 0; // 홈 탭(인덱스 0)으로 이동
-                                  });
-                                }
                               },
-                              icon: Icon(Icons.auto_awesome),
-                              label: Text('맞춤 식단 생성하기'),
+                              icon: Icon(Icons.restaurant_menu),
+                              label: Text(localization.generateMealButton),
                               style: ElevatedButton.styleFrom(
-                                padding: EdgeInsets.symmetric(vertical: 16, horizontal: 24),
+                                padding: EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                                textStyle: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 16,
+                                ),
                               ),
                             ),
                           ],
@@ -233,6 +240,7 @@ class ProfileScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final surveyDataProvider = Provider.of<SurveyDataProvider>(context);
     final userData = surveyDataProvider.userData;
+    final localization = AppLocalizations.of(context);
     
     // 기본 정보가 누락된 경우 이니셜 화면으로 이동
     if (userData.age == null || userData.gender == null || userData.height == null || userData.weight == null) {
@@ -244,32 +252,47 @@ class ProfileScreen extends StatelessWidget {
       // 로딩 화면 표시
       return Scaffold(
         body: FullScreenProgressLoading(
-          message: '사용자 정보를 확인 중입니다...',
+          message: localization.loadingUserInfo,
         ),
       );
     }
     
     return Scaffold(
       appBar: EatrueAppBar(
-        title: '내 프로필',
-        subtitle: '개인 정보 및 설정 관리',
+        title: localization.tabProfile,
+        actions: [
+          IconButton(
+            icon: Icon(Icons.settings),
+            onPressed: () {
+              Navigator.push(
+                context, 
+                MaterialPageRoute(builder: (context) => SettingsScreen())
+              );
+            },
+          ),
+        ],
       ),
       body: SafeArea(
         child: ListView(
           padding: EdgeInsets.all(16),
           children: [
-            Center(
-              child: CircleAvatar(
-                radius: 50,
-                backgroundColor: Theme.of(context).colorScheme.primary,
-                child: Icon(
-                  Icons.person,
-                  size: 50,
-                  color: Colors.white,
-                ),
+            SizedBox(height: 16),
+            CircleAvatar(
+              radius: 50,
+              backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+              child: Icon(
+                Icons.person,
+                size: 60,
+                color: Theme.of(context).colorScheme.primary,
               ),
             ),
-            SizedBox(height: 24),
+            SizedBox(height: 16),
+            Text(
+              localization.userName,
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.headlineSmall,
+            ),
+            SizedBox(height: 32),
             Card(
               margin: EdgeInsets.only(bottom: 16),
               child: Padding(
@@ -277,14 +300,14 @@ class ProfileScreen extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('기본 정보', style: Theme.of(context).textTheme.titleLarge),
+                    Text(localization.profileBasicInfo, style: Theme.of(context).textTheme.titleLarge),
                     Divider(),
                     SizedBox(height: 8),
-                    _buildProfileItem(context, '나이', userData.age != null ? '${userData.age}세' : '정보 없음'),
-                    _buildProfileItem(context, '성별', userData.gender ?? '정보 없음'),
-                    _buildProfileItem(context, '키', userData.height != null ? '${userData.height}cm' : '정보 없음'),
-                    _buildProfileItem(context, '체중', userData.weight != null ? '${userData.weight}kg' : '정보 없음'),
-                    _buildProfileItem(context, '활동 수준', userData.activityLevel ?? '정보 없음'),
+                    _buildProfileItem(context, localization.profileAge, userData.age != null ? '${userData.age}${localization.isKorean() ? "세" : ""}' : localization.none),
+                    _buildProfileItem(context, localization.profileGender, userData.gender ?? localization.none),
+                    _buildProfileItem(context, localization.profileHeight, userData.height != null ? '${userData.height}cm' : localization.none),
+                    _buildProfileItem(context, localization.profileWeight, userData.weight != null ? '${userData.weight}kg' : localization.none),
+                    _buildProfileItem(context, localization.profileActivityLevel, userData.activityLevel ?? localization.none),
                   ],
                 ),
               ),
@@ -296,14 +319,14 @@ class ProfileScreen extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('식이 제한 및 선호도', style: Theme.of(context).textTheme.titleLarge),
+                    Text(localization.dietaryRestrictions, style: Theme.of(context).textTheme.titleLarge),
                     Divider(),
                     SizedBox(height: 8),
-                    _buildProfileItem(context, '채식주의자', userData.isVegan ? '예' : '아니오'),
-                    _buildProfileItem(context, '종교적 제한', userData.isReligious ? (userData.religionDetails ?? '있음') : '없음'),
-                    _buildProfileItem(context, '알레르기', userData.allergies.isEmpty ? '없음' : userData.allergies.join(', ')),
-                    _buildProfileItem(context, '선호 식품', userData.favoriteFoods.isEmpty ? '없음' : userData.favoriteFoods.join(', ')),
-                    _buildProfileItem(context, '기피 식품', userData.dislikedFoods.isEmpty ? '없음' : userData.dislikedFoods.join(', ')),
+                    _buildProfileItem(context, localization.isVegan, userData.isVegan ? localization.yes : localization.no),
+                    _buildProfileItem(context, localization.religiousRestrictions, userData.isReligious ? (userData.religionDetails ?? localization.yes) : localization.none),
+                    _buildProfileItem(context, localization.allergies, userData.allergies.isEmpty ? localization.none : userData.allergies.join(', ')),
+                    _buildProfileItem(context, localization.favoriteFoods, userData.favoriteFoods.isEmpty ? localization.none : userData.favoriteFoods.join(', ')),
+                    _buildProfileItem(context, localization.dislikedFoods, userData.dislikedFoods.isEmpty ? localization.none : userData.dislikedFoods.join(', ')),
                   ],
                 ),
               ),
@@ -319,11 +342,11 @@ class ProfileScreen extends StatelessWidget {
                   children: [
                     Row(
                       children: [
-                        Text('선호 식품 분석 결과', 
+                        Text(localization.preferredFoodAnalysis, 
                             style: Theme.of(context).textTheme.titleLarge),
                         SizedBox(width: 8),
                         Tooltip(
-                          message: '선호하는 음식을 AI가 분석하여 식재료, 양념, 조리 방식으로 분류한 결과입니다.',
+                          message: 'AI가 선호하는 음식을 분석한 결과입니다',
                           child: Icon(Icons.info_outline, 
                                   size: 16, 
                                   color: Theme.of(context).colorScheme.primary),
@@ -339,14 +362,14 @@ class ProfileScreen extends StatelessWidget {
                     ),
                     Divider(),
                     SizedBox(height: 8),
-                    _buildProfileItem(context, '선호 식재료', 
-                        userData.preferredIngredients.isEmpty ? '분석 결과 없음' 
+                    _buildProfileItem(context, localization.ingredients, 
+                        userData.preferredIngredients.isEmpty ? localization.noAnalysisResults
                         : userData.preferredIngredients.join(', ')),
-                    _buildProfileItem(context, '선호 양념', 
-                        userData.preferredSeasonings.isEmpty ? '분석 결과 없음' 
+                    _buildProfileItem(context, localization.seasonings, 
+                        userData.preferredSeasonings.isEmpty ? localization.noAnalysisResults
                         : userData.preferredSeasonings.join(', ')),
-                    _buildProfileItem(context, '선호 조리 방식', 
-                        userData.preferredCookingStyles.isEmpty ? '분석 결과 없음' 
+                    _buildProfileItem(context, localization.cookingStyles, 
+                        userData.preferredCookingStyles.isEmpty ? localization.noAnalysisResults
                         : userData.preferredCookingStyles.join(', ')),
                     if (userData.favoriteFoods.isNotEmpty)
                       Padding(
@@ -355,7 +378,7 @@ class ProfileScreen extends StatelessWidget {
                           child: OutlinedButton.icon(
                             onPressed: () => _reanalyzeFoodPreferences(context, true),
                             icon: Icon(Icons.refresh),
-                            label: Text(userData.preferredIngredients.isEmpty ? '분석하기' : '다시 분석하기'),
+                            label: Text(userData.preferredIngredients.isEmpty ? localization.analyzeButton : localization.reanalyzeButton),
                             style: OutlinedButton.styleFrom(
                               foregroundColor: Theme.of(context).colorScheme.primary,
                               side: BorderSide(color: Theme.of(context).colorScheme.primary),
@@ -378,11 +401,11 @@ class ProfileScreen extends StatelessWidget {
                   children: [
                     Row(
                       children: [
-                        Text('기피 식품 분석 결과', 
+                        Text(localization.dislikedFoodAnalysis, 
                             style: Theme.of(context).textTheme.titleLarge),
                         SizedBox(width: 8),
                         Tooltip(
-                          message: '기피하는 음식을 AI가 분석하여 식재료, 양념, 조리 방식으로 분류한 결과입니다.',
+                          message: 'AI가 기피하는 음식을 분석한 결과입니다',
                           child: Icon(Icons.info_outline, 
                                   size: 16, 
                                   color: Theme.of(context).colorScheme.primary),
@@ -398,14 +421,14 @@ class ProfileScreen extends StatelessWidget {
                     ),
                     Divider(),
                     SizedBox(height: 8),
-                    _buildProfileItem(context, '기피 식재료', 
-                        userData.dislikedIngredients.isEmpty ? '분석 결과 없음' 
+                    _buildProfileItem(context, localization.ingredients, 
+                        userData.dislikedIngredients.isEmpty ? localization.noAnalysisResults 
                         : userData.dislikedIngredients.join(', ')),
-                    _buildProfileItem(context, '기피 양념', 
-                        userData.dislikedSeasonings.isEmpty ? '분석 결과 없음' 
+                    _buildProfileItem(context, localization.seasonings, 
+                        userData.dislikedSeasonings.isEmpty ? localization.noAnalysisResults 
                         : userData.dislikedSeasonings.join(', ')),
-                    _buildProfileItem(context, '기피 조리 방식', 
-                        userData.dislikedCookingStyles.isEmpty ? '분석 결과 없음' 
+                    _buildProfileItem(context, localization.cookingStyles, 
+                        userData.dislikedCookingStyles.isEmpty ? localization.noAnalysisResults 
                         : userData.dislikedCookingStyles.join(', ')),
                     if (userData.dislikedFoods.isNotEmpty)
                       Padding(
@@ -414,7 +437,7 @@ class ProfileScreen extends StatelessWidget {
                           child: OutlinedButton.icon(
                             onPressed: () => _reanalyzeFoodPreferences(context, false),
                             icon: Icon(Icons.refresh),
-                            label: Text(userData.dislikedIngredients.isEmpty ? '분석하기' : '다시 분석하기'),
+                            label: Text(userData.dislikedIngredients.isEmpty ? localization.analyzeButton : localization.reanalyzeButton),
                             style: OutlinedButton.styleFrom(
                               foregroundColor: Theme.of(context).colorScheme.primary,
                               side: BorderSide(color: Theme.of(context).colorScheme.primary),
@@ -434,12 +457,12 @@ class ProfileScreen extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('조리 환경', style: Theme.of(context).textTheme.titleLarge),
+                    Text(localization.cookingEnvironment, style: Theme.of(context).textTheme.titleLarge),
                     Divider(),
                     SizedBox(height: 8),
-                    _buildProfileItem(context, '선호 조리법', userData.preferredCookingMethods.isEmpty ? '없음' : userData.preferredCookingMethods.join(', ')),
-                    _buildProfileItem(context, '가용 조리도구', userData.availableCookingTools.isEmpty ? '없음' : userData.availableCookingTools.join(', ')),
-                    _buildProfileItem(context, '선호 조리시간', userData.preferredCookingTime != null ? '${userData.preferredCookingTime}분' : '정보 없음'),
+                    _buildProfileItem(context, localization.preferredCookingMethods, userData.preferredCookingMethods.isEmpty ? localization.none : userData.preferredCookingMethods.join(', ')),
+                    _buildProfileItem(context, localization.availableCookingTools, userData.availableCookingTools.isEmpty ? localization.none : userData.availableCookingTools.join(', ')),
+                    _buildProfileItem(context, localization.preferredCookingTime, userData.preferredCookingTime != null ? '${userData.preferredCookingTime} ${localization.minutes}' : localization.none),
                   ],
                 ),
               ),
@@ -450,29 +473,20 @@ class ProfileScreen extends StatelessWidget {
                 Navigator.of(context).pushNamedAndRemoveUntil('/survey', (route) => false);
               },
               icon: Icon(Icons.edit),
-              label: Text('내 정보 수정하기'),
+              label: Text(localization.editProfile),
               style: ElevatedButton.styleFrom(
                 padding: EdgeInsets.symmetric(vertical: 16),
               ),
             ),
             SizedBox(height: 24),
-            // 설정 카드
+            // 초기 설문 보기 카드
             Card(
               margin: EdgeInsets.symmetric(vertical: 8),
               child: Column(
                 children: [
                   ListTile(
-                    leading: Icon(Icons.settings),
-                    title: Text('설정'),
-                    trailing: Icon(Icons.chevron_right),
-                    onTap: () {
-                      // 설정 화면으로 이동 (필요시 구현)
-                    },
-                  ),
-                  Divider(height: 1),
-                  ListTile(
                     leading: Icon(Icons.edit_document),
-                    title: Text('초기 설문지 다시 보기'),
+                    title: Text(localization.viewInitialSurvey),
                     trailing: Icon(Icons.chevron_right),
                     onTap: () {
                       Navigator.of(context).pushNamed('/initial');
@@ -532,6 +546,7 @@ class ProfileScreen extends StatelessWidget {
   
   // 분석 상태 배지 위젯
   Widget _buildAnalysisStatusBadge(BuildContext context, {required bool hasData}) {
+    final localization = AppLocalizations.of(context);
     return Container(
       padding: EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       decoration: BoxDecoration(
@@ -539,7 +554,7 @@ class ProfileScreen extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
       ),
       child: Text(
-        hasData ? '분석 완료' : '미분석',
+        hasData ? localization.analysisDone : localization.notAnalyzed,
         style: TextStyle(
           fontSize: 12,
           color: hasData ? Colors.green[800] : Colors.orange[800],
@@ -554,11 +569,12 @@ class ProfileScreen extends StatelessWidget {
     final FoodAnalysisService foodAnalysisService = FoodAnalysisService();
     final surveyProvider = Provider.of<SurveyDataProvider>(context, listen: false);
     final userData = surveyProvider.userData;
+    final localization = AppLocalizations.of(context);
     
     // 분석 시작 메시지
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('${isPreferred ? '선호' : '기피'} 식품을 분석 중입니다...'),
+        content: Text(localization.analyzingMessage),
         duration: Duration(seconds: 2),
       ),
     );
@@ -577,7 +593,7 @@ class ProfileScreen extends StatelessWidget {
           // 성공 메시지
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('선호 식품 분석이 완료되었습니다'),
+              content: Text(localization.analysisComplete),
               backgroundColor: Colors.green,
             ),
           );
@@ -585,7 +601,7 @@ class ProfileScreen extends StatelessWidget {
           // 오류 메시지
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('분석 중 오류가 발생했습니다'),
+              content: Text(localization.analysisError),
               backgroundColor: Colors.red,
             ),
           );
@@ -605,7 +621,7 @@ class ProfileScreen extends StatelessWidget {
           // 성공 메시지
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('기피 식품 분석이 완료되었습니다'),
+              content: Text(localization.analysisComplete),
               backgroundColor: Colors.green,
             ),
           );
@@ -613,7 +629,7 @@ class ProfileScreen extends StatelessWidget {
           // 오류 메시지
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('분석 중 오류가 발생했습니다'),
+              content: Text(localization.analysisError),
               backgroundColor: Colors.red,
             ),
           );

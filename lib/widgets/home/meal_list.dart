@@ -4,8 +4,10 @@ import '../../providers/meal_provider.dart';
 import '../../models/meal.dart';
 import '../../utils/meal_type_utils.dart';
 import '../../screens/recipe_detail_screen.dart';
+import '../../l10n/app_localizations.dart';
 import 'meal_card.dart';
 import 'meal_add_dialog.dart';
+import 'package:provider/provider.dart';
 
 /// 홈 화면의 식단 목록을 표시하는 위젯
 class MealList extends StatelessWidget {
@@ -20,46 +22,68 @@ class MealList extends StatelessWidget {
   
   @override
   Widget build(BuildContext context) {
-    final Map<String, Meal?> mealsForDate = mealProvider.getMealsByDate(selectedDate);
+    mealProvider = Provider.of<MealProvider>(context);
+    final localization = AppLocalizations.of(context);
     
-    // 날짜 포맷팅
-    final DateFormat formatter = DateFormat('M월 d일 (E)', 'ko_KR');
-    final String formattedDate = formatter.format(selectedDate);
-    
-    // 디버깅 로그 추가
+    // 표준 날짜 포맷 (연-월-일)
     final dateKey = DateFormat('yyyy-MM-dd').format(selectedDate);
+    
+    // 디버깅 로그
     print("MealList - selectedDate: $selectedDate, dateKey: $dateKey");
-    print("MealList - mealsForDate: ${mealsForDate.entries.map((e) => '${e.key}: ${e.value?.name ?? "null"}').join(', ')}");
+    
+    // 날짜에 해당하는 식단 가져오기
+    final mealsForDate = mealProvider.getMealsByDateAndCategory(selectedDate);
+    
+    // 디버깅 로그 (한번만 출력)
+    print("MealList - mealsForDate: ${mealsForDate.entries.map((e) => '${e.key}: ${e.value?.name}').join(', ')}");
     print("MealList - 전체 저장된 식단 키 목록: ${mealProvider.savedMealsByDate.keys.join(', ')}");
     
+    final formattedDate = DateFormat('yyyy년 MM월 dd일').format(selectedDate);
+    
+    // 오늘 날짜 확인
+    final bool isToday = _isToday(selectedDate);
+    
     return SingleChildScrollView(
-      child: Padding(
-        padding: EdgeInsets.symmetric(vertical: 16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // 선택된 날짜 표시
-            Padding(
-              padding: EdgeInsets.only(left: 16, right: 16, bottom: 8),
-              child: Text(
-                formattedDate,
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
+      padding: EdgeInsets.symmetric(vertical: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // 달력 위젯
+          CalendarStrip(
+            onDateSelected: _onDateChange,
+            selectedDate: selectedDate,
+          ),
+          
+          SizedBox(height: 16),
+          
+          // 날짜별 식단 목록 표시
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // 선택된 날짜 표시
+              Padding(
+                padding: EdgeInsets.only(left: 16, right: 16, bottom: 8),
+                child: Text(
+                  formattedDate,
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
-            ),
-            
-            // 식단 타입 순서 정의
-            ..._buildMealTypeSection(context, '아침', mealsForDate['아침']),
-            ..._buildMealTypeSection(context, '점심', mealsForDate['점심']),
-            ..._buildMealTypeSection(context, '저녁', mealsForDate['저녁']),
-            ..._buildMealTypeSection(context, '간식', mealsForDate['간식']),
-            // 기타 카테고리 추가
-            if (mealsForDate.containsKey('기타') && mealsForDate['기타'] != null)
-              ..._buildMealTypeSection(context, '기타', mealsForDate['기타']),
-          ],
-        ),
+              
+              // 식단 타입 섹션 - 지역화된 카테고리 이름 사용
+              ..._buildMealTypeSection(context, localization.breakfast, mealsForDate[localization.breakfast]),
+              ..._buildMealTypeSection(context, localization.lunch, mealsForDate[localization.lunch]),
+              ..._buildMealTypeSection(context, localization.dinner, mealsForDate[localization.dinner]),
+              ..._buildMealTypeSection(context, localization.snack, mealsForDate[localization.snack]),
+              
+              // 식단 생성 버튼 (오늘 날짜에만 표시)
+              if (isToday && mealProvider.generatedMenuByMealType.isEmpty)
+                _buildGenerateMenuButton(context),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -93,6 +117,8 @@ class MealList extends StatelessWidget {
   
   // 식단 추가 버튼
   Widget _buildAddMealButton(BuildContext context, String mealType) {
+    final localization = AppLocalizations.of(context);
+    
     // 언어에 상관없이 표준화된 카테고리 사용
     final String standardCategory = standardizeCategory(mealType, toKorean: false);
     
@@ -136,8 +162,8 @@ class MealList extends StatelessWidget {
               SizedBox(height: 8),
               Text(
                 showRecommended 
-                  ? '$mealType 추천 메뉴 보기' 
-                  : '$mealType 식사 추가하기',
+                  ? '$mealType ${localization.viewRecipe}' 
+                  : '$mealType ${localization.addMeal}',
                 style: TextStyle(
                   color: showRecommended 
                     ? Theme.of(context).colorScheme.primary 
@@ -151,7 +177,7 @@ class MealList extends StatelessWidget {
                 Padding(
                   padding: EdgeInsets.only(top: 4),
                   child: Text(
-                    '${mealProvider.generatedMenuByMealType[standardCategory]?.length ?? 0}개의 추천 메뉴가 있습니다',
+                    '${mealProvider.generatedMenuByMealType[standardCategory]?.length ?? 0}${localization.recommendedMenuCount}',
                     style: TextStyle(
                       fontSize: 12,
                       color: Colors.green[700],
@@ -178,11 +204,13 @@ class MealList extends StatelessWidget {
   
   // 레시피 상세 보기
   void _viewRecipe(BuildContext context, Meal meal) async {
+    final localization = AppLocalizations.of(context);
+    
     try {
       // 로딩 표시
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('레시피 정보를 불러오는 중...'),
+          content: Text(localization.loadingRecipe),
           duration: Duration(seconds: 1),
           behavior: SnackBarBehavior.floating,
         ),
@@ -208,7 +236,7 @@ class MealList extends StatelessWidget {
         print('레시피 생성 실패');
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('레시피를 생성할 수 없습니다.'),
+            content: Text(localization.recipeGenerationFail),
             behavior: SnackBarBehavior.floating,
           ),
         );
@@ -217,7 +245,7 @@ class MealList extends StatelessWidget {
       print('레시피 생성 중 오류: $e');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('오류가 발생했습니다: $e'),
+          content: Text('${localization.recipeLoadError}$e'),
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -226,18 +254,20 @@ class MealList extends StatelessWidget {
   
   // 식단 삭제 확인 다이얼로그
   void _confirmDeleteMeal(BuildContext context, Meal meal) {
+    final localization = AppLocalizations.of(context);
+    
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('식단 삭제'),
-        content: Text('${meal.name} 식단을 삭제하시겠습니까?'),
+        title: Text(localization.deleteMealTitle),
+        content: Text('${meal.name} ${localization.deleteMealConfirm}'),
         actions: [
           TextButton(
-            child: Text('취소'),
+            child: Text(localization.cancelButton),
             onPressed: () => Navigator.pop(context),
           ),
           TextButton(
-            child: Text('삭제', style: TextStyle(color: Colors.red)),
+            child: Text(localization.deleteButton, style: TextStyle(color: Colors.red)),
             onPressed: () async {
               try {
                 Navigator.pop(context);
@@ -245,14 +275,15 @@ class MealList extends StatelessWidget {
                 await mealProvider.removeMeal(meal, selectedDate);
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
-                    content: Text('${meal.name} 식단이 삭제되었습니다.'),
+                    content: Text('${meal.name} ${localization.deleteMealSuccess}'),
                     behavior: SnackBarBehavior.floating,
                   ),
                 );
               } catch (e) {
+                print('삭제 중 오류 발생: $e');
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
-                    content: Text('삭제 실패: $e'),
+                    content: Text('${localization.deleteMealError}$e'),
                     backgroundColor: Colors.red,
                     behavior: SnackBarBehavior.floating,
                   ),
@@ -261,6 +292,31 @@ class MealList extends StatelessWidget {
             },
           ),
         ],
+      ),
+    );
+  }
+  
+  // 한국어 요일 반환
+  String _getKoreanWeekday(int weekday) {
+    final weekdays = ['월', '화', '수', '목', '금', '토', '일'];
+    return weekdays[weekday - 1];
+  }
+  
+  // 메뉴 생성 버튼
+  Widget _buildGenerateMenuButton(BuildContext context) {
+    final localization = AppLocalizations.of(context);
+    
+    return Padding(
+      padding: EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+      child: Center(
+        child: ElevatedButton.icon(
+          icon: Icon(Icons.restaurant_menu),
+          label: Text(localization.generateMenu),
+          style: ElevatedButton.styleFrom(
+            padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+          ),
+          onPressed: () => _generateMenu(context),
+        ),
       ),
     );
   }

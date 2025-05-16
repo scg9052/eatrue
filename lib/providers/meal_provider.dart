@@ -4,6 +4,8 @@ import 'package:flutter/foundation.dart';
 import 'package:firebase_auth/firebase_auth.dart'; // FirebaseAuth import
 import 'package:cloud_firestore/cloud_firestore.dart' hide Transaction; // Firestore import
 import 'package:intl/intl.dart'; // DateFormat import 추가
+import 'package:flutter/widgets.dart'; // BuildContext를 위한 import
+import '../l10n/app_localizations.dart'; // AppLocalizations import
 
 // 각 API 호출을 위한 서비스 import
 // import '../services/preference_summary_service.dart';
@@ -20,21 +22,49 @@ import '../models/meal_base.dart'; // 식단 베이스 모델 추가
 import '../models/simple_menu.dart'; // SimpleMenu 모델 추가
 import '../utils/meal_type_utils.dart'; // 식단 타입 유틸리티 추가
 import '../providers/survey_data_provider.dart'; // SurveyDataProvider 임포트 추가
+import '../providers/language_provider.dart'; // 언어 설정 추가
 
 class MealProvider with ChangeNotifier {
-  final FirebaseAuth _auth = FirebaseAuth.instance;
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseAuth _auth;
+  final FirebaseFirestore _firestore;
   
   // 서비스 인스턴스
   // final PreferenceSummaryService _preferenceSummaryService = PreferenceSummaryService();
   final NutrientCalculationService _nutrientCalculationService = NutrientCalculationService();
   // final DislikeSummaryService _dislikeSummaryService = DislikeSummaryService();
-  final MenuGenerationService _menuGenerationService = MenuGenerationService();
+  final MenuGenerationService _menuGenerationService;
   final MenuVerificationService _menuVerificationService = MenuVerificationService();
   final MealBaseService _mealBaseService = MealBaseService();
   
   final SurveyDataProvider _surveyDataProvider; // UserData 접근용
-
+  final LanguageProvider? _languageProvider; // 언어 설정 추가
+  
+  // 지역화 처리를 위한 변수
+  AppLocalizations? _appLocalizations;
+  
+  // 언어별 식사 타입 매핑
+  final Map<String, Map<String, String>> _locales = {
+    'ko': {
+      'breakfast': '아침',
+      'lunch': '점심',
+      'dinner': '저녁',
+      'snack': '간식'
+    },
+    'en': {
+      'breakfast': 'Breakfast',
+      'lunch': 'Lunch',
+      'dinner': 'Dinner',
+      'snack': 'Snack'
+    }
+  };
+  
+  // 에러 메시지 상수 (필요시 추가)
+  static const String ERROR_MISSING_USER_INFO = "사용자의 기본 정보(나이, 성별, 키, 체중, 활동량)가 누락되었습니다.";
+  static const String ERROR_NUTRIENTS_CALCULATION = "영양소 계산에 실패했습니다.";
+  static const String ERROR_PREFERENCES_SUMMARY = "선호 정보 요약에 실패했습니다.";
+  static const String ERROR_DISLIKES_SUMMARY = "기피 정보 요약에 실패했습니다.";
+  static const String ERROR_MENU_GENERATION = "초기 메뉴 생성에 실패했습니다. 네트워크 연결을 확인하거나 나중에 다시 시도해 주세요.";
+  
   // 상태 변수
   String? _currentUserId; // 현재 익명 사용자의 UID
   String? _preferenceSummary;
@@ -119,40 +149,63 @@ class MealProvider with ChangeNotifier {
     _progressPercentage = null;
   }
 
-  MealProvider(this._surveyDataProvider) {
-    // 인증 상태 변경 감지
-    _auth.authStateChanges().listen((User? user) {
-      if (user != null) {
-        if (_currentUserId != user.uid) { // 사용자가 변경되었거나, 처음 로그인한 경우
-          _currentUserId = user.uid;
-          print("MealProvider: User is signed in with UID - $_currentUserId");
-          loadSavedMealsFromFirestore(); // 저장된 식단 로드
-          loadMealBases(); // 식단 베이스 로드
-        }
-      } else {
-        _currentUserId = null;
-        _savedMealsByDate.clear(); // 로그아웃 시 데이터 초기화
-        _mealBases.clear(); // 로그아웃 시 식단 베이스 초기화
-        _mealBasesByCategory.clear();
-        print("MealProvider: User is signed out. Cleared saved meals and meal bases.");
-        notifyListeners();
-      }
-    });
+  // 언어 변경 시 호출될 메서드 - 생성된 메뉴 초기화
+  void clearGeneratedMenus() {
+    print("언어 변경으로 생성된 메뉴 초기화");
+    _generatedMenuByMealType = {};
+    _lastGeneratedMenuJson = null;
+    _recommendedMeals = [];
+    notifyListeners();
+  }
 
-    // 초기 사용자 상태 확인
-    final User? initialUser = _auth.currentUser;
-    if (initialUser != null) {
-      _currentUserId = initialUser.uid;
-      print("MealProvider 초기화: 익명 사용자 UID - $_currentUserId");
-      loadSavedMealsFromFirestore();
-      loadMealBases(); // 식단 베이스 로드
-    } else {
-      print("MealProvider 초기화: 익명 사용자를 찾을 수 없음.");
+  MealProvider({
+    FirebaseFirestore? firestore,
+    FirebaseAuth? auth,
+    MenuGenerationService? menuGenerationService,
+    SurveyDataProvider? surveyDataProvider,
+    LanguageProvider? languageProvider, // 생성자에 추가
+  }) : _firestore = firestore ?? FirebaseFirestore.instance,
+       _auth = auth ?? FirebaseAuth.instance,
+       _menuGenerationService = menuGenerationService ?? MenuGenerationService(
+         // MenuGenerationService 생성 시 languageProvider 전달
+         languageProvider: languageProvider
+       ),
+       _surveyDataProvider = surveyDataProvider ?? SurveyDataProvider(),
+       _languageProvider = languageProvider { // 프로퍼티 초기화
+    _auth.authStateChanges().listen(_handleAuthStateChanged);
+    
+    // LanguageProvider에 MenuGenerationService 참조 전달
+    if (languageProvider != null) {
+      languageProvider.setMenuGenerationService(_menuGenerationService);
+      // LanguageProvider에 MealProvider 참조 전달 (자기 자신)
+      languageProvider.setMealProvider(this);
     }
+  }
+  
+  // 인증 상태 변경 처리 메서드
+  void _handleAuthStateChanged(User? user) {
+    _currentUserId = user?.uid;
+    if (_currentUserId != null) {
+      print("인증 상태 변경: 사용자 로그인됨 (UID: $_currentUserId)");
+      loadSavedMealsFromFirestore();
+      loadMealBases();
+    } else {
+      print("인증 상태 변경: 사용자 로그아웃됨");
+      _savedMealsByDate.clear();
+      _mealBases.clear();
+      _mealBasesByCategory.clear();
+      notifyListeners();
+    }
+  }
+  
+  // 지역화 설정 메소드
+  void setLocalizations(BuildContext context) {
+    _appLocalizations = AppLocalizations.of(context);
+    notifyListeners();
   }
 
   Future<void> orchestrateMenuGeneration() async {
-    _setLoading(true, "개인 맞춤 메뉴 생성 시작...", progressPercentage: 0.05);
+    _setLoading(true, _appLocalizations?.startMenuGeneration ?? "개인 맞춤 메뉴 생성 시작...", progressPercentage: 0.05);
     _clearPreviousResults();
     final UserData userData = _surveyDataProvider.userData;
 
@@ -173,53 +226,53 @@ class MealProvider with ChangeNotifier {
       print("  종교적 제한: ${userData.isReligious ? '있음' : '없음'}");
 
       if (userData.age == null || userData.gender == null || userData.height == null || userData.weight == null || userData.activityLevel == null) {
-        throw Exception("사용자의 기본 정보(나이, 성별, 키, 체중, 활동량)가 누락되었습니다.");
+        throw Exception(_appLocalizations?.errorMissingUserInfo ?? ERROR_MISSING_USER_INFO);
       }
 
-      _setProgressMessage("일일 권장 영양소 계산 중...", progressPercentage: 0.1);
+      _setProgressMessage(_appLocalizations?.calculatingNutrients ?? "일일 권장 영양소 계산 중...", progressPercentage: 0.1);
       _nutrientInfo = await _nutrientCalculationService.calculateNutrients(
         age: userData.age!, gender: userData.gender!, height: userData.height!, weight: userData.weight!, activityLevel: userData.activityLevel!,
       );
-      if (_nutrientInfo == null) throw Exception("영양소 계산에 실패했습니다.");
+      if (_nutrientInfo == null) throw Exception(_appLocalizations?.errorNutrientsCalculation ?? ERROR_NUTRIENTS_CALCULATION);
       print("영양소 계산 완료: $_nutrientInfo");
       notifyListeners();
 
       // 캐시된 선호도 정보 사용
-      _setProgressMessage("선호 정보 가져오는 중...", progressPercentage: 0.2);
+      _setProgressMessage(_appLocalizations?.gettingPreferences ?? "선호 정보 가져오는 중...", progressPercentage: 0.2);
       _preferenceSummary = await _surveyDataProvider.getPreferenceSummary();
-      if (_preferenceSummary == null) throw Exception("선호 정보 요약에 실패했습니다.");
+      if (_preferenceSummary == null) throw Exception(_appLocalizations?.errorPreferencesSummary ?? ERROR_PREFERENCES_SUMMARY);
       print("선호 정보 요약: $_preferenceSummary");
       notifyListeners();
 
       // 캐시된 기피 정보 사용
-      _setProgressMessage("기피 정보 가져오는 중...", progressPercentage: 0.3);
+      _setProgressMessage(_appLocalizations?.gettingDislikes ?? "기피 정보 가져오는 중...", progressPercentage: 0.3);
       _dislikeSummary = await _surveyDataProvider.getDislikeSummary();
-      if (_dislikeSummary == null) throw Exception("기피 정보 요약에 실패했습니다.");
+      if (_dislikeSummary == null) throw Exception(_appLocalizations?.errorDislikesSummary ?? ERROR_DISLIKES_SUMMARY);
       print("기피 정보 요약: $_dislikeSummary");
       notifyListeners();
 
-      _setProgressMessage("초기 메뉴 생성 중...", progressPercentage: 0.4);
+      _setProgressMessage(_appLocalizations?.initialMenuGenerating ?? "초기 메뉴 생성 중...", progressPercentage: 0.4);
       Map<String, dynamic>? currentMenuJson = await _menuGenerationService.generateMenu(
-        userRecommendedNutrients: _nutrientInfo!,
-        summarizedDislikes: _dislikeSummary!,
-        summarizedPreferences: _preferenceSummary!,
+        nutrients: _nutrientInfo!,
+        dislikes: _dislikeSummary!,
+        preferences: _preferenceSummary!,
         userData: userData, // 사용자 정보 전체를 전달
       );
       
       if (currentMenuJson == null) {
         print("첫 번째 메뉴 생성 시도 실패, 재시도 중...");
-        _setProgressMessage("메뉴 생성 재시도 중...", progressPercentage: 0.5);
+        _setProgressMessage(_appLocalizations?.retryingMenuGeneration ?? "메뉴 생성 재시도 중...", progressPercentage: 0.5);
         
         // 두 번째 시도
         currentMenuJson = await _menuGenerationService.generateMenu(
-          userRecommendedNutrients: _nutrientInfo!,
-          summarizedDislikes: _dislikeSummary!,
-          summarizedPreferences: _preferenceSummary!,
+          nutrients: _nutrientInfo!,
+          dislikes: _dislikeSummary!,
+          preferences: _preferenceSummary!,
           userData: userData, // 사용자 정보 전체를 전달
         );
         
         if (currentMenuJson == null) {
-          throw Exception("초기 메뉴 생성에 실패했습니다. 네트워크 연결을 확인하거나 나중에 다시 시도해 주세요.");
+          throw Exception(_appLocalizations?.errorMenuGeneration ?? ERROR_MENU_GENERATION);
         }
       }
       
@@ -231,7 +284,8 @@ class MealProvider with ChangeNotifier {
       _verificationFeedback = null;
 
       while (regenerationAttempts < maxRegenerationAttempts) {
-        _setProgressMessage("메뉴 검증 중 (시도: ${regenerationAttempts + 1})...", progressPercentage: 0.6 + (regenerationAttempts * 0.1));
+        String verifyingMenuText = (_appLocalizations?.verifyingMenu ?? "메뉴 검증 중 (시도: {0})...").replaceAll("{0}", "${regenerationAttempts + 1}");
+        _setProgressMessage(verifyingMenuText, progressPercentage: 0.6 + (regenerationAttempts * 0.1));
         final verificationResult = await _menuVerificationService.verifyMenu(
           userPreferences: _preferenceSummary!,
           userDislikes: _dislikeSummary!,
@@ -241,7 +295,7 @@ class MealProvider with ChangeNotifier {
         );
         
         if (verificationResult == true || (verificationResult is String && verificationResult.trim().toLowerCase() == 'true')) {
-          _setProgressMessage("메뉴 검증 통과!", progressPercentage: 0.8);
+          _setProgressMessage(_appLocalizations?.menuVerificationPassed ?? "메뉴 검증 통과!", progressPercentage: 0.8);
           _verificationFeedback = null;
           break;
         } else if (verificationResult is Map<String, dynamic> && verificationResult.isNotEmpty) {
@@ -251,21 +305,22 @@ class MealProvider with ChangeNotifier {
             _verificationFeedback = null;
             break;
           } else if (_verificationFeedback!.isEmpty) {
-            _setProgressMessage("메뉴 검증 결과가 비어있습니다. 현재 메뉴를 사용합니다.", progressPercentage: 0.8);
+            _setProgressMessage(_appLocalizations?.menuVerificationEmpty ?? "메뉴 검증 결과가 비어있습니다. 현재 메뉴를 사용합니다.", progressPercentage: 0.8);
             _verificationFeedback = null;
             break;
           }
           
           regenerationAttempts++;
-          _setProgressMessage("검증된 피드백으로 메뉴 재생성 중 (시도: $regenerationAttempts)...", progressPercentage: 0.7 + (regenerationAttempts * 0.05));
+          String regeneratingMenuText = (_appLocalizations?.regeneratingMenu ?? "검증된 피드백으로 메뉴 재생성 중 (시도: {0})...").replaceAll("{0}", "$regenerationAttempts");
+          _setProgressMessage(regeneratingMenuText, progressPercentage: 0.7 + (regenerationAttempts * 0.05));
           
           // 기존 구현에 맞춰서 메뉴 재생성
-          final regeneratedMenuJson = await _menuGenerationService.generateMenu(
-            userRecommendedNutrients: _nutrientInfo!,
-            summarizedDislikes: _dislikeSummary!,
-            summarizedPreferences: _preferenceSummary!,
-            previousMenu: _lastGeneratedMenuJson,
-            verificationFeedback: _verificationFeedback,
+          final regeneratedMenuJson = await _menuGenerationService.regenerateMenu(
+            nutrients: _nutrientInfo!,
+            dislikes: _dislikeSummary!,
+            preferences: _preferenceSummary!,
+            previousMenu: _lastGeneratedMenuJson ?? {},
+            verificationFeedback: _verificationFeedback ?? {},
             timeout: Duration(seconds: 30 + (regenerationAttempts * 5)), // 재시도마다 타임아웃 증가
             userData: userData, // 사용자 정보 전체를 전달
           );
@@ -279,7 +334,7 @@ class MealProvider with ChangeNotifier {
             break;
           }
         } else {
-          _setProgressMessage("메뉴 검증 결과 처리 중 문제 발생. 현재 메뉴를 사용합니다.", progressPercentage: 0.8);
+          _setProgressMessage(_appLocalizations?.menuVerificationProblem ?? "메뉴 검증 결과 처리 중 문제 발생. 현재 메뉴를 사용합니다.", progressPercentage: 0.8);
           _verificationFeedback = null;
           break;
         }
@@ -289,10 +344,10 @@ class MealProvider with ChangeNotifier {
       _parseAndSetGeneratedMenu(currentMenuJson);
       
       // 생성된 메뉴를 자동으로 식단 베이스에 추가
-      _setProgressMessage("식단 베이스에 메뉴 추가 중...", progressPercentage: 0.9);
+      _setProgressMessage(_appLocalizations?.addingMenuToBase ?? "식단 베이스에 메뉴 추가 중...", progressPercentage: 0.9);
       await _autoSaveMainMenusToMealBase();
       
-      _setProgressMessage("맞춤 식단이 준비되었습니다!", progressPercentage: 1.0);
+      _setProgressMessage(_appLocalizations?.menuReady ?? "맞춤 식단이 준비되었습니다!", progressPercentage: 1.0);
       // 짧은 지연 후에 로딩 표시 해제 (완료 메시지 확인을 위해)
       await Future.delayed(Duration(milliseconds: 800));
       _isLoading = false;
@@ -882,66 +937,36 @@ class MealProvider with ChangeNotifier {
   }
 
   Future<void> saveMeal(Meal meal, DateTime date) async {
-    // 이미 저장 처리 중이면 중복 호출 방지
     if (_isProcessingSave) {
-      print("⚠️ 이미 식단 저장 작업이 진행 중입니다. 중복 요청 무시.");
+      print('❗ 이미 저장 작업이 진행 중입니다.');
       return;
     }
     
-    if (_currentUserId == null || _currentUserId!.isEmpty) {
-      print("⚠️ 익명 사용자가 없어 식단을 저장할 수 없습니다.");
-      _errorMessage = "사용자 인증이 필요합니다.";
-      notifyListeners();
-      return;
-    }
-    
-    // 저장 상태 설정
+    // 저장 중 상태로 설정
     _isProcessingSave = true;
-    _errorMessage = null; // 이전 오류 메시지 초기화
+    notifyListeners();
+    
     try {
-      // 날짜 문자열 포맷 수정 - 일관된 날짜 형식 사용
+      // 사용자 ID 확인
+      if (_currentUserId == null) {
+        throw Exception('사용자 인증 정보가 없습니다. 로그인 후 다시 시도해주세요.');
+      }
+      
+      // 저장할 날짜 키 생성
       String dateString = _getDateKey(date);
-      print("저장할 날짜: $dateString, 원본 날짜: ${date.toString()}");
+      print("저장할 날짜: $dateString, 원본 날짜: $date");
       print("현재 저장된 날짜 키 목록: ${_savedMealsByDate.keys.join(', ')}");
       
-      // Firestore에 먼저 저장 (주요 저장소)
-      print("Firestore에 식단 저장 시작: meals/${meal.id}");
-      
-      // 단순화된 컬렉션 구조로 저장
-      final Map<String, dynamic> dataToSave = meal.toJson();
-      
-      // Firebase에 저장하기 위한 추가 필드
-      dataToSave['userId'] = _currentUserId; // 사용자 ID 추가
-      
-      // 날짜 필드 확인 및 보정
-      if (!dataToSave.containsKey('date') || dataToSave['date'] == null) {
-        print("⚠️ 날짜 필드가 없거나 null입니다. 현재 날짜로 설정합니다.");
-        dataToSave['date'] = date.toIso8601String();
-      }
-      
-      // 현재 카테고리가 설정되어 있는지 확인
-      if (!dataToSave.containsKey('category') || dataToSave['category'] == null || dataToSave['category'].toString().isEmpty) {
-        print("⚠️ 카테고리 필드가 없거나 비어있습니다. 기본값으로 설정합니다.");
-        dataToSave['category'] = '기타';
-      }
-      
-      // 칼로리 정보 확인 및 개선
-      if (!dataToSave.containsKey('calories') || dataToSave['calories'] == null || dataToSave['calories'].toString().isEmpty) {
-        print("⚠️ 칼로리 정보가 없습니다. 기본값으로 설정합니다.");
-        dataToSave['calories'] = '칼로리 정보 없음';
-      } else {
-        print("ℹ️ 식단 칼로리 정보: ${dataToSave['calories']}");
-        
-        // 숫자만 있는 경우 'kcal' 추가
-        String caloriesStr = dataToSave['calories'].toString();
-        if (caloriesStr.isNotEmpty && 
-            !caloriesStr.toLowerCase().contains('kcal') && 
-            !caloriesStr.toLowerCase().contains('칼로리') &&
-            !caloriesStr.contains('정보 없음')) {
-          dataToSave['calories'] = '$caloriesStr kcal';
-          print("🔄 칼로리 정보 보정: ${dataToSave['calories']}");
-        }
-      }
+      // Firestore에 저장할 데이터 준비
+      final dataToSave = {
+        'id': meal.id,
+        'name': meal.name,
+        'description': meal.description ?? '',
+        'calories': meal.calories ?? (_appLocalizations?.caloriesNone ?? '칼로리 정보 없음'),
+        'date': date.toIso8601String(),
+        'category': meal.category,
+        'userId': _currentUserId,
+      };
       
       // 레시피 정보 확인 및 개선
       if (dataToSave.containsKey('recipeJson') && dataToSave['recipeJson'] != null) {
@@ -1155,41 +1180,51 @@ class MealProvider with ChangeNotifier {
 
   // 날짜별로 아침/점심/저녁/간식 Map<String, Meal?> 반환
   Map<String, Meal?> getMealsByDate(DateTime date) {
-    // 표준화된 날짜 키 형식 사용
-    final dateString = _getDateKey(date);
-    
-    print("getMealsByDate 호출됨: $dateString");
-    
-    // 저장된 식단 정보 확인
-    if (_savedMealsByDate.isEmpty) {
-      print("  저장된 식단 정보가 없습니다.");
-    } else {
+    try {
+      final String dateKey = _getDateKey(date);
+      print("getMealsByDate 호출됨: $dateKey");
+      
+      // 디버깅용 로그 추가
       print("  저장된 날짜 키 목록: ${_savedMealsByDate.keys.join(', ')}");
-      print("  찾는 날짜 키: $dateString");
-    }
-    
-    final meals = _savedMealsByDate[dateString] ?? [];
-    print("  찾은 식단 수: ${meals.length}");
-    
-    Map<String, Meal?> result = {
-      '아침': null,
-      '점심': null,
-      '저녁': null,
-      '간식': null,
-      '기타': null,
-    };
-    
-    for (final meal in meals) {
-      print("  식단 정보: ${meal.id}, ${meal.name}, ${meal.category}");
-      if (result.containsKey(meal.category)) {
-        result[meal.category] = meal;
-      } else {
-        print("  경고: 알 수 없는 카테고리 - ${meal.category}, 식단 ID: ${meal.id}");
-        result['기타'] = meal;
+      print("  찾는 날짜 키: $dateKey");
+      
+      if (_savedMealsByDate.containsKey(dateKey)) {
+        final meals = _savedMealsByDate[dateKey] ?? [];
+        print("  찾은 식단 수: ${meals.length}");
+        
+        // 최대 5개까지만 출력
+        for (int i = 0; i < min(meals.length, 5); i++) {
+          final meal = meals[i];
+          print("  식단 정보: ${meal.id}, ${meal.name}, ${meal.category}");
+        }
+        
+        return meals;
       }
+      
+      print("  해당 날짜의 식단 없음: $dateKey");
+      return [];
+    } catch (e) {
+      print("getMealsByDate 오류: $e");
+      return [];
     }
-    
-    return result;
+  }
+  
+  // 식단 정보를 날짜-카테고리 맵으로 정리하여 반환
+  Map<String, Meal?> getMealsByDateAndCategory(DateTime date) {
+    try {
+      final meals = getMealsByDate(date);
+      final Map<String, Meal?> result = {};
+      
+      // 카테고리별로 최신 항목만 유지
+      for (final meal in meals) {
+        result[meal.category] = meal;
+      }
+      
+      return result;
+    } catch (e) {
+      print("getMealsByDateAndCategory 오류: $e");
+      return {};
+    }
   }
 
   Future<void> saveMealFromMealBase(MealBase mealBase, DateTime date) async {
@@ -1825,5 +1860,50 @@ class MealProvider with ChangeNotifier {
           ),
         ];
     }
+  }
+
+  // 영어 식사 카테고리를 현지화된 텍스트로 변환
+  String getMealTypeLocalized(String englishCategory) {
+    // 빈 값 또는 null 처리
+    if (englishCategory.isEmpty) {
+      return '';
+    }
+
+    // 1. 로컬라이제이션 매핑 확인 (기본적으로 한국어로 설정)
+    String languageCode = _languageProvider?.currentLocale.languageCode ?? 'ko';
+    
+    if (_locales.containsKey(languageCode) && 
+        _locales[languageCode]!.containsKey(englishCategory.toLowerCase())) {
+      return _locales[languageCode]![englishCategory.toLowerCase()]!;
+    }
+    
+    // 2. AppLocalizations 확인 (fallback)
+    if (_appLocalizations != null) {
+      final mapping = {
+        'breakfast': _appLocalizations!.breakfast,
+        'lunch': _appLocalizations!.lunch,
+        'dinner': _appLocalizations!.dinner,
+        'snack': _appLocalizations!.snack,
+      };
+      
+      if (mapping.containsKey(englishCategory.toLowerCase())) {
+        return mapping[englishCategory.toLowerCase()]!;
+      }
+    }
+    
+    // 3. 한국어 매핑 확인 (2차 fallback)
+    final mapping = {
+      'breakfast': '아침',
+      'lunch': '점심',
+      'dinner': '저녁',
+      'snack': '간식',
+    };
+    
+    if (mapping.containsKey(englishCategory.toLowerCase())) {
+      return mapping[englishCategory.toLowerCase()]!;
+    }
+    
+    // 4. 기본값
+    return '기타';
   }
 }

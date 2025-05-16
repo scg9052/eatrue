@@ -6,6 +6,7 @@ import '../widgets/app_bar_widget.dart';
 import '../models/recipe.dart';
 import 'recipe_detail_screen.dart';
 import 'package:intl/intl.dart';
+import '../l10n/app_localizations.dart';
 
 enum SortOption {
   newest,
@@ -48,29 +49,34 @@ class _MealBaseScreenState extends State<MealBaseScreen> with SingleTickerProvid
   @override
   Widget build(BuildContext context) {
     final mealProvider = Provider.of<MealProvider>(context);
+    final localization = AppLocalizations.of(context);
     
     return Scaffold(
       appBar: EatrueAppBar(
-        title: '식단 베이스',
-        subtitle: '저장된 식단을 관리하세요',
+        title: localization.mealBaseTitle,
+        subtitle: localization.mealBaseSubtitle,
       ),
       body: Column(
         children: [
-          // 검색창 및 정렬 옵션
+          // 검색 및 정렬 바
           Padding(
             padding: const EdgeInsets.all(16.0),
             child: Row(
               children: [
+                // 검색 입력 필드
                 Expanded(
                   child: TextField(
                     controller: _searchController,
                     decoration: InputDecoration(
-                      hintText: '식단 검색',
+                      hintText: localization.searchMealBase,
                       prefixIcon: Icon(Icons.search),
                       border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.circular(30),
+                        borderSide: BorderSide.none,
                       ),
-                      contentPadding: EdgeInsets.symmetric(vertical: 0, horizontal: 16),
+                      filled: true,
+                      fillColor: Colors.grey[200],
+                      contentPadding: EdgeInsets.symmetric(vertical: 0),
                     ),
                     onChanged: (value) {
                       setState(() {
@@ -79,14 +85,19 @@ class _MealBaseScreenState extends State<MealBaseScreen> with SingleTickerProvid
                     },
                   ),
                 ),
-                SizedBox(width: 8),
+                
+                // 정렬 버튼
                 PopupMenuButton<SortOption>(
-                  icon: Icon(Icons.sort),
-                  tooltip: '정렬 옵션',
-                  initialValue: _currentSortOption,
-                  onSelected: (SortOption option) {
+                  icon: Row(
+                    children: [
+                      Icon(Icons.sort),
+                      SizedBox(width: 4),
+                      Text(localization.sort),
+                    ],
+                  ),
+                  onSelected: (value) {
                     setState(() {
-                      _currentSortOption = option;
+                      _currentSortOption = value;
                     });
                   },
                   itemBuilder: (context) => [
@@ -95,14 +106,12 @@ class _MealBaseScreenState extends State<MealBaseScreen> with SingleTickerProvid
                       child: Row(
                         children: [
                           Icon(
-                            Icons.access_time,
-                            color: _currentSortOption == SortOption.newest
-                                ? Theme.of(context).primaryColor
-                                : null,
+                            Icons.calendar_today,
+                            color: _currentSortOption == SortOption.newest ? Theme.of(context).primaryColor : null,
                             size: 18,
                           ),
                           SizedBox(width: 8),
-                          Text('최신순'),
+                          Text(localization.sortByNewest),
                         ],
                       ),
                     ),
@@ -111,14 +120,12 @@ class _MealBaseScreenState extends State<MealBaseScreen> with SingleTickerProvid
                       child: Row(
                         children: [
                           Icon(
-                            Icons.star,
-                            color: _currentSortOption == SortOption.rating
-                                ? Theme.of(context).primaryColor
-                                : null,
+                            Icons.star_rate,
+                            color: _currentSortOption == SortOption.rating ? Theme.of(context).primaryColor : null,
                             size: 18,
                           ),
                           SizedBox(width: 8),
-                          Text('별점순'),
+                          Text(localization.sortByRating),
                         ],
                       ),
                     ),
@@ -128,13 +135,11 @@ class _MealBaseScreenState extends State<MealBaseScreen> with SingleTickerProvid
                         children: [
                           Icon(
                             Icons.repeat,
-                            color: _currentSortOption == SortOption.usageCount
-                                ? Theme.of(context).primaryColor
-                                : null,
+                            color: _currentSortOption == SortOption.usageCount ? Theme.of(context).primaryColor : null,
                             size: 18,
                           ),
                           SizedBox(width: 8),
-                          Text('사용 빈도순'),
+                          Text(localization.sortByUsage),
                         ],
                       ),
                     ),
@@ -144,13 +149,11 @@ class _MealBaseScreenState extends State<MealBaseScreen> with SingleTickerProvid
                         children: [
                           Icon(
                             Icons.local_fire_department,
-                            color: _currentSortOption == SortOption.calories
-                                ? Theme.of(context).primaryColor
-                                : null,
+                            color: _currentSortOption == SortOption.calories ? Theme.of(context).primaryColor : null,
                             size: 18,
                           ),
                           SizedBox(width: 8),
-                          Text('칼로리순'),
+                          Text(localization.sortByCalories),
                         ],
                       ),
                     ),
@@ -174,11 +177,11 @@ class _MealBaseScreenState extends State<MealBaseScreen> with SingleTickerProvid
               controller: _tabController,
               isScrollable: true,
               tabs: [
-                Tab(text: '전체'),
-                _buildCategoryTab('아침'),
-                _buildCategoryTab('점심'),
-                _buildCategoryTab('저녁'),
-                _buildCategoryTab('간식'),
+                Tab(text: localization.all),
+                _buildCategoryTab(localization.breakfast),
+                _buildCategoryTab(localization.lunch),
+                _buildCategoryTab(localization.dinner),
+                _buildCategoryTab(localization.snack),
               ],
               labelColor: Theme.of(context).colorScheme.primary,
               unselectedLabelColor: Colors.grey[600],
@@ -196,11 +199,11 @@ class _MealBaseScreenState extends State<MealBaseScreen> with SingleTickerProvid
                 : TabBarView(
                     controller: _tabController,
                     children: [
-                      _buildMealBaseGrid(mealProvider.mealBases, '전체'),
-                      _buildMealBaseGrid(mealProvider.mealBasesByCategory['아침'] ?? [], '아침'),
-                      _buildMealBaseGrid(mealProvider.mealBasesByCategory['점심'] ?? [], '점심'),
-                      _buildMealBaseGrid(mealProvider.mealBasesByCategory['저녁'] ?? [], '저녁'),
-                      _buildMealBaseGrid(mealProvider.mealBasesByCategory['간식'] ?? [], '간식'),
+                      _buildMealBaseGrid(mealProvider.mealBases, localization.all),
+                      _buildMealBaseGrid(mealProvider.mealBasesByCategory[localization.breakfast] ?? [], localization.breakfast),
+                      _buildMealBaseGrid(mealProvider.mealBasesByCategory[localization.lunch] ?? [], localization.lunch),
+                      _buildMealBaseGrid(mealProvider.mealBasesByCategory[localization.dinner] ?? [], localization.dinner),
+                      _buildMealBaseGrid(mealProvider.mealBasesByCategory[localization.snack] ?? [], localization.snack),
                     ],
                   ),
           ),
@@ -229,6 +232,8 @@ class _MealBaseScreenState extends State<MealBaseScreen> with SingleTickerProvid
   }
   
   Widget _buildMealBaseGrid(List<MealBase> mealBases, String category) {
+    final localization = AppLocalizations.of(context);
+    
     // 검색 필터링
     final filteredMealBases = _searchQuery.isNotEmpty
         ? mealBases.where((mealBase) {
@@ -276,8 +281,10 @@ class _MealBaseScreenState extends State<MealBaseScreen> with SingleTickerProvid
             SizedBox(height: 16),
             Text(
               _searchQuery.isNotEmpty
-                  ? '검색 결과가 없습니다'
-                  : '저장된 $category 식단이 없습니다',
+                  ? localization.noSearchResults
+                  : localization.isKorean()
+                      ? '$category ${localization.none}'
+                      : 'No $category meals saved',
               style: TextStyle(
                 fontSize: 16,
                 color: Colors.grey[600],
@@ -293,7 +300,7 @@ class _MealBaseScreenState extends State<MealBaseScreen> with SingleTickerProvid
                   });
                 },
                 icon: Icon(Icons.clear),
-                label: Text('검색 초기화'),
+                label: Text(localization.resetSearch),
               ),
           ],
         ),
@@ -322,6 +329,7 @@ class _MealBaseScreenState extends State<MealBaseScreen> with SingleTickerProvid
   
   Widget _buildMealBaseCard(MealBase mealBase) {
     final mealProvider = Provider.of<MealProvider>(context, listen: false);
+    final localization = AppLocalizations.of(context);
     final bool hasRejectionReasons = mealBase.rejectionReasons != null && mealBase.rejectionReasons!.isNotEmpty;
     
     return Card(
@@ -407,7 +415,7 @@ class _MealBaseScreenState extends State<MealBaseScreen> with SingleTickerProvid
                   Text(
                     mealBase.calories != null && mealBase.calories!.isNotEmpty
                         ? mealBase.calories!
-                        : '칼로리 정보 없음',
+                        : '${localization.calories} ${localization.none}',
                     style: TextStyle(
                       fontSize: 12,
                       color: Colors.grey[700],
@@ -508,22 +516,23 @@ class _MealBaseScreenState extends State<MealBaseScreen> with SingleTickerProvid
   }
   
   Color _getCategoryColor(String category) {
-    switch (category) {
-      case '아침':
-        return Colors.orange[700]!;
-      case '점심':
-        return Colors.green[700]!;
-      case '저녁':
-        return Colors.indigo[700]!;
-      case '간식':
-        return Colors.purple[700]!;
-      default:
-        return Colors.grey[700]!;
+    // 한국어 카테고리명
+    if (category == '아침' || category == 'Breakfast') {
+      return Colors.orange[700]!;
+    } else if (category == '점심' || category == 'Lunch') {
+      return Colors.green[700]!;
+    } else if (category == '저녁' || category == 'Dinner') {
+      return Colors.indigo[700]!;
+    } else if (category == '간식' || category == 'Snack') {
+      return Colors.purple[700]!;
+    } else {
+      return Colors.grey[700]!;
     }
   }
   
   void _showMealBaseDetailsDialog(MealBase mealBase) {
     final mealProvider = Provider.of<MealProvider>(context, listen: false);
+    final localization = AppLocalizations.of(context);
     final bool hasRejectionReasons = mealBase.rejectionReasons != null && mealBase.rejectionReasons!.isNotEmpty;
     
     showModalBottomSheet(
@@ -748,16 +757,16 @@ class _MealBaseScreenState extends State<MealBaseScreen> with SingleTickerProvid
                     final confirmed = await showDialog<bool>(
                       context: context,
                       builder: (context) => AlertDialog(
-                        title: Text('식단 삭제'),
-                        content: Text('${mealBase.name}을(를) 식단 베이스에서 삭제하시겠습니까?'),
+                        title: Text(localization.deleteMealBaseTitle),
+                        content: Text('${mealBase.name}${localization.deleteMealBaseConfirm}'),
                         actions: [
                           TextButton(
                             onPressed: () => Navigator.pop(context, false),
-                            child: Text('취소'),
+                            child: Text(localization.cancelButton),
                           ),
                           TextButton(
                             onPressed: () => Navigator.pop(context, true),
-                            child: Text('삭제', style: TextStyle(color: Colors.red)),
+                            child: Text(localization.deleteButton, style: TextStyle(color: Colors.red)),
                           ),
                         ],
                       ),
@@ -769,14 +778,14 @@ class _MealBaseScreenState extends State<MealBaseScreen> with SingleTickerProvid
                         await mealProvider.deleteMealBase(mealBase);
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
-                            content: Text('식단이 삭제되었습니다: ${mealBase.name}'),
+                            content: Text('${localization.deleteMealBaseSuccess}${mealBase.name}'),
                             behavior: SnackBarBehavior.floating,
                           ),
                         );
                       } catch (e) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
-                            content: Text('식단 삭제 중 오류: $e'),
+                            content: Text('${localization.deleteMealBaseError}$e'),
                             backgroundColor: Colors.red,
                             behavior: SnackBarBehavior.floating,
                           ),
@@ -785,7 +794,7 @@ class _MealBaseScreenState extends State<MealBaseScreen> with SingleTickerProvid
                     }
                   },
                   icon: Icon(Icons.delete_outline, color: Colors.red),
-                  label: Text('식단 삭제', style: TextStyle(color: Colors.red)),
+                  label: Text(localization.deleteMealBaseTitle, style: TextStyle(color: Colors.red)),
                   style: OutlinedButton.styleFrom(
                     side: BorderSide(color: Colors.red),
                   ),
@@ -799,6 +808,7 @@ class _MealBaseScreenState extends State<MealBaseScreen> with SingleTickerProvid
   }
   
   void _showDatePicker(BuildContext context, MealBase mealBase) async {
+    final localization = AppLocalizations.of(context);
     final DateTime? pickedDate = await showDatePicker(
       context: context,
       initialDate: DateTime.now(),
@@ -822,7 +832,7 @@ class _MealBaseScreenState extends State<MealBaseScreen> with SingleTickerProvid
                 ),
               ),
               SizedBox(width: 16),
-              Text('${mealBase.name} 추가 중...')
+              Text('${mealBase.name}${localization.addingMealInProgress}')
             ],
           ),
           duration: Duration(seconds: 30), // 충분히 긴 시간으로 설정
@@ -843,9 +853,16 @@ class _MealBaseScreenState extends State<MealBaseScreen> with SingleTickerProvid
         scaffoldMessenger.hideCurrentSnackBar();
         
         // 성공 메시지 표시
+        String formattedDate;
+        if (localization.isKorean()) {
+          formattedDate = DateFormat('yyyy년 MM월 dd일').format(pickedDate);
+        } else {
+          formattedDate = DateFormat('MMMM d, yyyy').format(pickedDate);
+        }
+        
         scaffoldMessenger.showSnackBar(
           SnackBar(
-            content: Text('${mealBase.name}이(가) ${DateFormat('yyyy년 MM월 dd일').format(pickedDate)}에 추가되었습니다'),
+            content: Text('${mealBase.name}${localization.mealAddedToCalendar}$formattedDate'),
             backgroundColor: Colors.green,
             behavior: SnackBarBehavior.floating,
           ),
@@ -857,7 +874,7 @@ class _MealBaseScreenState extends State<MealBaseScreen> with SingleTickerProvid
         // 오류 메시지 표시
         scaffoldMessenger.showSnackBar(
           SnackBar(
-            content: Text('식단 추가 중 오류: $e'),
+            content: Text('${localization.mealAddError}$e'),
             backgroundColor: Colors.red,
             behavior: SnackBarBehavior.floating,
           ),
@@ -869,6 +886,7 @@ class _MealBaseScreenState extends State<MealBaseScreen> with SingleTickerProvid
   
   void _showRatingDialog(BuildContext context, MealBase mealBase) {
     double currentRating = mealBase.rating ?? 0.0;
+    final localization = AppLocalizations.of(context);
     
     showDialog(
       context: context,
@@ -876,7 +894,7 @@ class _MealBaseScreenState extends State<MealBaseScreen> with SingleTickerProvid
         return StatefulBuilder(
           builder: (context, setState) {
             return AlertDialog(
-              title: Text('식단 평가'),
+              title: Text(localization.ratingDialogTitle),
               content: Container(
                 width: double.maxFinite,
                 child: Column(
@@ -905,7 +923,7 @@ class _MealBaseScreenState extends State<MealBaseScreen> with SingleTickerProvid
                     ),
                     SizedBox(height: 8),
                     Text(
-                      currentRating > 0 ? '$currentRating / 5.0' : '평가하지 않음',
+                      currentRating > 0 ? '$currentRating / 5.0' : localization.notRated,
                       style: TextStyle(fontSize: 16),
                     ),
                   ],
@@ -914,7 +932,7 @@ class _MealBaseScreenState extends State<MealBaseScreen> with SingleTickerProvid
               actions: [
                 TextButton(
                   onPressed: () => Navigator.pop(context),
-                  child: Text('취소'),
+                  child: Text(localization.cancelButton),
                 ),
                 ElevatedButton(
                   onPressed: () async {
@@ -927,14 +945,14 @@ class _MealBaseScreenState extends State<MealBaseScreen> with SingleTickerProvid
                         await mealProvider.rateMealBase(mealBase.id, currentRating);
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
-                            content: Text('평가가 저장되었습니다: ${mealBase.name} (${currentRating.toStringAsFixed(1)}/5)'),
+                            content: Text('${localization.ratingSaved}${mealBase.name} (${currentRating.toStringAsFixed(1)}/5)'),
                             behavior: SnackBarBehavior.floating,
                           ),
                         );
                       } catch (e) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
-                            content: Text('평가 저장 중 오류: $e'),
+                            content: Text('${localization.ratingSaveError}$e'),
                             backgroundColor: Colors.red,
                             behavior: SnackBarBehavior.floating,
                           ),
@@ -942,7 +960,7 @@ class _MealBaseScreenState extends State<MealBaseScreen> with SingleTickerProvid
                       }
                     }
                   },
-                  child: Text('저장'),
+                  child: Text(localization.saveButton),
                 ),
               ],
             );
@@ -954,16 +972,17 @@ class _MealBaseScreenState extends State<MealBaseScreen> with SingleTickerProvid
   
   void _showAddTagDialog(BuildContext context, MealBase mealBase) {
     final TextEditingController tagController = TextEditingController();
+    final localization = AppLocalizations.of(context);
     
     showDialog(
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: Text('태그 추가'),
+          title: Text(localization.addTag),
           content: TextField(
             controller: tagController,
             decoration: InputDecoration(
-              hintText: '태그 입력',
+              hintText: localization.tagInputHint,
               border: OutlineInputBorder(),
             ),
             autofocus: true,
@@ -971,7 +990,7 @@ class _MealBaseScreenState extends State<MealBaseScreen> with SingleTickerProvid
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: Text('취소'),
+              child: Text(localization.cancelButton),
             ),
             ElevatedButton(
               onPressed: () async {
@@ -985,14 +1004,14 @@ class _MealBaseScreenState extends State<MealBaseScreen> with SingleTickerProvid
                     await mealProvider.addTagToMealBase(mealBase.id, tag);
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
-                        content: Text('태그가 추가되었습니다: $tag'),
+                        content: Text('${localization.tagAdded}$tag'),
                         behavior: SnackBarBehavior.floating,
                       ),
                     );
                   } catch (e) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
-                        content: Text('태그 추가 중 오류: $e'),
+                        content: Text('${localization.addTagError}$e'),
                         backgroundColor: Colors.red,
                         behavior: SnackBarBehavior.floating,
                       ),
@@ -1000,7 +1019,7 @@ class _MealBaseScreenState extends State<MealBaseScreen> with SingleTickerProvid
                   }
                 }
               },
-              child: Text('추가'),
+              child: Text(localization.addButton),
             ),
           ],
         );
